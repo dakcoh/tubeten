@@ -40,3 +40,12 @@
     - 캐시가 없으면 DB 또는 YouTube API로 fallback
 4. 최신 데이터와 DB의 과거 스냅샷을 **비교하여 트렌드 계산**
 5. 클라이언트에 **인기 영상 + 트렌드 정보** 응답
+
+## 테스트
+### API 확인 (POSTMAN 활용)
+![image](https://github.com/user-attachments/assets/85816319-6a96-4c03-8016-857be50e488b)
+### 캐싱 확인 (Docker + Redis 활용)
+![image](https://github.com/user-attachments/assets/efe3fbbd-1c65-4cca-853a-0117ddd08684)
+- 캐싱된 데이터 조회 확인
+- 30분마다 snapshot 데이터 저장 및 캐싱 확인 가능
+
