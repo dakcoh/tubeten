@@ -78,4 +78,39 @@ public class PopularVideoTrendService {
                 .map(video -> PopularVideoWithTrend.of(video, "new"))
                 .collect(Collectors.toList());
     }
+
+    public List<PopularVideoWithTrend> addTrend(List<PopularVideoResponse> current, String regionCode, String categoryId) {
+        // 최신 snapshot 조회
+        List<VideoSnapshot> lastSnapshots = snapshotRepository
+                .findTop10ByRegionCodeAndCategoryIdOrderBySnapshotTimeDesc(regionCode, categoryId);
+
+        // videoId → rank 매핑
+        Map<String, Integer> previousRankMap = new HashMap<>();
+        for (VideoSnapshot snapshot : lastSnapshots) {
+            previousRankMap.put(snapshot.getVideoId(), snapshot.getRank());
+        }
+
+        List<PopularVideoWithTrend> result = new ArrayList<>();
+        for (int i = 0; i < current.size(); i++) {
+            PopularVideoResponse video = current.get(i);
+            int currentRank = i + 1;
+
+            String trend;
+            Integer previousRank = previousRankMap.get(video.getVideoId());
+
+            if (previousRank == null) {
+                trend = "new";
+            } else if (currentRank < previousRank) {
+                trend = "↑";
+            } else if (currentRank > previousRank) {
+                trend = "↓";
+            } else {
+                trend = "→";
+            }
+
+            result.add(PopularVideoWithTrend.of(video, trend));
+        }
+
+        return result;
+    }
 }

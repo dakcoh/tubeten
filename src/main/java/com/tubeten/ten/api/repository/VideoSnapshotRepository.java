@@ -43,4 +43,6 @@ public interface VideoSnapshotRepository extends JpaRepository<VideoSnapshot, Lo
     """)
     boolean existsByRegionCodeAndCategoryId(@Param("region") String region,
                                             @Param("categoryId") String categoryId);
+
+    List<VideoSnapshot> findTop10ByRegionCodeAndCategoryIdOrderBySnapshotTimeDesc(String region, String categoryId);
 }
