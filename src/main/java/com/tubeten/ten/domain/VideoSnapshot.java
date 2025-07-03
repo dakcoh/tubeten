@@ -21,6 +21,7 @@ public class VideoSnapshot {
     private String title;
     private String channelTitle;
 
+    @Column(name = "video_rank")
     private int rank;
     private long viewCount;
 
