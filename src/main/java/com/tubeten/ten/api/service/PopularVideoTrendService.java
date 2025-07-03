@@ -39,12 +39,26 @@ public class PopularVideoTrendService {
         }
 
         // 2. 1시간 전 snapshot 조회 (region + categoryId 기준)
+        Optional<VideoSnapshot> latestSnapshotOpt =
+                snapshotRepository.findTop1ByRegionCodeAndCategoryIdAndSnapshotTimeLessThanOrderBySnapshotTimeDesc(
+                        region, categoryId, LocalDateTime.now()
+                );
+
+        if (latestSnapshotOpt.isEmpty()) {
+            return markAllAsNew(currentList); // 혹은 전부 '→' 처리
+        }
+
+        LocalDateTime compareTime = latestSnapshotOpt.get().getSnapshotTime();
+        List<VideoSnapshot> previousSnapshots =
+                snapshotRepository.findBySnapshotTimeAndRegionCodeAndCategoryId(compareTime, region, categoryId);
+        /*
         LocalDateTime latestTime = snapshotRepository.findLatestSnapshotTime(region, categoryId);
         if (latestTime == null) return markAllAsNew(currentList);
 
         LocalDateTime compareTime = latestTime.minusHours(1);
         List<VideoSnapshot> previousSnapshots =
                 snapshotRepository.findBySnapshotTimeAndRegionCodeAndCategoryId(compareTime, region, categoryId);
+        */
 
         // 3. 이전 순위 맵핑
         Map<String, Integer> previousRankMap = previousSnapshots.stream()

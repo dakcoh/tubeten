@@ -7,6 +7,7 @@ import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 public interface VideoSnapshotRepository extends JpaRepository<VideoSnapshot, Long> {
 
@@ -45,4 +46,10 @@ public interface VideoSnapshotRepository extends JpaRepository<VideoSnapshot, Lo
                                             @Param("categoryId") String categoryId);
 
     List<VideoSnapshot> findTop10ByRegionCodeAndCategoryIdOrderBySnapshotTimeDesc(String region, String categoryId);
+
+    Optional<VideoSnapshot> findTop1ByRegionCodeAndCategoryIdAndSnapshotTimeLessThanOrderBySnapshotTimeDesc(
+            String regionCode,
+            String categoryId,
+            LocalDateTime snapshotTime
+    );
 }
