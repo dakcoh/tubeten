@@ -34,22 +34,25 @@ public class PopularVideoScheduler {
     private List<String> categories;
 
     @Scheduled(cron = "0 0/30 * * * *")
-    public void fetchAndCacheTop10() {
+    public void fetchAndCacheTop100() {
         log.info("\uD83D\uDD04 유튜브 Top10 수집 시작");
 
         for (String region : regions) {
             for (String categoryId : (categories.isEmpty() ? List.of((String) null) : categories)) {
                 try {
-                    List<PopularVideoResponse> top10 = popularVideoService.getPopularVideosRaw(region, categoryId);
+                    // ✅ Top100 조회
+                    List<PopularVideoResponse> top100 = popularVideoService.getPopularVideosRaw(region, categoryId);
 
+                    // ✅ Key 수정
                     String redisKey = buildRedisKey(region, categoryId);
-                    String json = objectMapper.writeValueAsString(top10);
+                    String json = objectMapper.writeValueAsString(top100);
                     redisTemplate.opsForValue().set(redisKey, json, Duration.ofHours(1));
                     log.info("✅ Redis 저장 완료: {}", redisKey);
 
+                    // ✅ Snapshot 저장
                     LocalDateTime now = LocalDateTime.now();
                     int rank = 1;
-                    for (PopularVideoResponse video : top10) {
+                    for (PopularVideoResponse video : top100) {
                         VideoSnapshot snapshot = VideoSnapshot.builder()
                                 .videoId(video.getVideoId())
                                 .title(video.getTitle())
@@ -77,6 +80,6 @@ public class PopularVideoScheduler {
     }
 
     private String buildRedisKey(String region, String categoryId) {
-        return "top10:" + region + (categoryId != null ? ":" + categoryId : ":all");
+        return "top100:" + region + (categoryId != null ? ":" + categoryId : ":all");  // ✅ 여기도 수정
     }
 }
