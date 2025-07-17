@@ -37,10 +37,10 @@ public class PopularVideoService {
     private List<PopularVideoResponse> fetchYoutubeTop10(String regionCode, String categoryId) {
         UriComponentsBuilder builder = UriComponentsBuilder
                 .fromUri(URI.create(youtubeApiConfig.getBaseUrl() + "/videos"))
-                .queryParam("part", "snippet,statistics")
+                .queryParam("part", "snippet,statistics,contentDetails")
                 .queryParam("chart", "mostPopular")
                 .queryParam("regionCode", regionCode)
-                .queryParam("maxResults", 10)
+                .queryParam("maxResults", 100)
                 .queryParam("key", youtubeApiConfig.getKey());
 
         if (categoryId != null && !categoryId.isBlank()) {

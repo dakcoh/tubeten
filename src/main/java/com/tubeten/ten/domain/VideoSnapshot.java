@@ -2,7 +2,6 @@ package com.tubeten.ten.domain;
 
 import jakarta.persistence.*;
 import lombok.*;
-
 import java.time.LocalDateTime;
 
 @Entity
@@ -26,7 +25,6 @@ public class VideoSnapshot {
     private long viewCount;
 
     private String regionCode;
-
     private String categoryId;
 
     private LocalDateTime snapshotTime;

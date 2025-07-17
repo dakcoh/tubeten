@@ -42,13 +42,11 @@ public class PopularVideoScheduler {
                 try {
                     List<PopularVideoResponse> top10 = popularVideoService.getPopularVideosRaw(region, categoryId);
 
-                    // Redis 저장
                     String redisKey = buildRedisKey(region, categoryId);
                     String json = objectMapper.writeValueAsString(top10);
                     redisTemplate.opsForValue().set(redisKey, json, Duration.ofHours(1));
                     log.info("✅ Redis 저장 완료: {}", redisKey);
 
-                    // DB 저장
                     LocalDateTime now = LocalDateTime.now();
                     int rank = 1;
                     for (PopularVideoResponse video : top10) {
