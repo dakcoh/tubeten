@@ -1,6 +1,6 @@
 package com.tubeten.ten.api.controller;
 
-import com.tubeten.ten.api.dto.PopularVideoWithTrend;
+import com.tubeten.ten.domain.PopularVideoWithTrend;
 import com.tubeten.ten.api.service.PopularVideoService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;

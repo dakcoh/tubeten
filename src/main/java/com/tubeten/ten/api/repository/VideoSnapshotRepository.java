@@ -10,17 +10,6 @@ import java.util.List;
 import java.util.Optional;
 
 public interface VideoSnapshotRepository extends JpaRepository<VideoSnapshot, Long> {
-
-    // categoryId가 null인 경우도 처리
-    @Query("""
-        SELECT MAX(v.snapshotTime)
-        FROM VideoSnapshot v
-        WHERE v.regionCode = :region
-          AND (:categoryId IS NULL OR v.categoryId = :categoryId)
-    """)
-    LocalDateTime findLatestSnapshotTime(@Param("region") String region,
-                                         @Param("categoryId") String categoryId);
-
     // categoryId null 대응 버전
     @Query("""
         SELECT v
@@ -44,8 +33,6 @@ public interface VideoSnapshotRepository extends JpaRepository<VideoSnapshot, Lo
     """)
     boolean existsByRegionCodeAndCategoryId(@Param("region") String region,
                                             @Param("categoryId") String categoryId);
-
-    List<VideoSnapshot> findTop10ByRegionCodeAndCategoryIdOrderBySnapshotTimeDesc(String region, String categoryId);
 
     Optional<VideoSnapshot> findTop1ByRegionCodeAndCategoryIdAndSnapshotTimeLessThanOrderBySnapshotTimeDesc(
             String regionCode,

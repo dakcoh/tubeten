@@ -14,7 +14,7 @@ public class PopularVideoInitializer {
     @PostConstruct
     public void init() {
         try {
-            scheduler.fetchAndCacheTop10(); // ✅ 앱 시작 시 1회 실행
+            scheduler.fetchAndCacheTop100(); // ✅ 앱 시작 시 1회 실행
         } catch (Exception e) {
             // Redis가 연결 안되어 있어도 앱은 살아 있어야 함
             System.out.println("⚠️ 앱 시작 시 인기 영상 캐싱 실패 (무시): " + e.getMessage());
