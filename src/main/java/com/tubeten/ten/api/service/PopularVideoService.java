@@ -93,7 +93,9 @@ public class PopularVideoService {
         }
     }
 
-    public List<PopularVideoWithTrend> getPopularVideosWithAutoTrend(String regionCode, String categoryId) {
+    public List<PopularVideoWithTrend> getPopularVideosWithAutoTrend(
+            String regionCode, String categoryId, int offset, int limit
+    ) {
         String redisKey = "top100:" + regionCode + (categoryId != null ? ":" + categoryId : ":all");
         String cached = redisTemplate.opsForValue().get(redisKey);
 
@@ -110,14 +112,19 @@ public class PopularVideoService {
         } else {
             log.warn("❌ Redis MISS - YouTube API 호출: {}", redisKey);
             videos = fetchYoutubeTop100(regionCode, categoryId);
+            cacheAndSaveSnapshot(redisKey, videos, regionCode, categoryId);
         }
 
-        cacheAndSaveSnapshot(redisKey, videos, regionCode, categoryId);
+        int toIndex = Math.min(offset + limit, videos.size());
+        if (offset >= toIndex) return List.of();
+
+        List<PopularVideoResponse> page = videos.subList(offset, toIndex);
 
         if (videoSnapshotRepository.existsByRegionCodeAndCategoryId(regionCode, categoryId)) {
-            return popularVideoTrendService.getTopWithTrend(regionCode, categoryId, 100);
+            List<PopularVideoWithTrend> fullList = popularVideoTrendService.getTopWithTrend(regionCode, categoryId, 100);
+            return fullList.subList(offset, toIndex);
         } else {
-            return videos.stream()
+            return page.stream()
                     .map(video -> PopularVideoWithTrend.of(video, "new"))
                     .toList();
         }

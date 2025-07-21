@@ -18,8 +18,10 @@ public class PopularVideoController {
     @GetMapping("/popular")
     public ResponseEntity<List<PopularVideoWithTrend>> getPopularVideos(
             @RequestParam(defaultValue = "KR") String region,
-            @RequestParam(required = false) String categoryId
+            @RequestParam(required = false) String categoryId,
+            @RequestParam(defaultValue = "0") int offset,
+            @RequestParam(defaultValue = "6") int limit
     ) {
-        return ResponseEntity.ok(popularVideoService.getPopularVideosWithAutoTrend(region, categoryId));
+        return ResponseEntity.ok(popularVideoService.getPopularVideosWithAutoTrend(region, categoryId, offset, limit));
     }
 }
