@@ -21,7 +21,6 @@ import java.net.URI;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.*;
-import java.util.stream.StreamSupport;
 
 @Slf4j
 @Service
@@ -46,32 +45,32 @@ public class PopularVideoService {
         return "top100:" + region + (categoryId != null ? ":" + categoryId : ":all");
     }
 
-    private List<PopularVideoResponse> fetchYoutubeTop100(String regionCode, String categoryId) {
-        String r = normRegion(regionCode);
+    private List<PopularVideoResponse> fetchYoutubeTop100(String region, String categoryId) {
+        String r = normRegion(region);
         String c = normCat(categoryId);
+        List<PopularVideoResponse> out = new ArrayList<>(100);
 
-        UriComponentsBuilder builder = UriComponentsBuilder
-                .fromUri(URI.create(youtubeApiConfig.getBaseUrl() + "/videos"))
-                .queryParam("part", "snippet,statistics,contentDetails")
-                .queryParam("chart", "mostPopular")
-                .queryParam("regionCode", r)
-                .queryParam("maxResults", 100)
-                .queryParam("key", youtubeApiConfig.getKey());
+        String pageToken = null;
+        for (int page = 0; page < 2; page++) {
+            UriComponentsBuilder b = UriComponentsBuilder
+                    .fromUri(URI.create(youtubeApiConfig.getBaseUrl() + "/videos"))
+                    .queryParam("part", "snippet,statistics,contentDetails")
+                    .queryParam("chart", "mostPopular")
+                    .queryParam("regionCode", r)
+                    .queryParam("maxResults", 50)
+                    .queryParam("key", youtubeApiConfig.getKey());
+            if (c != null) b.queryParam("videoCategoryId", c);
+            if (pageToken != null) b.queryParam("pageToken", pageToken);
 
-        if (c != null) builder.queryParam("videoCategoryId", c);
+            ResponseEntity<JsonNode> res = restTemplate.getForEntity(b.toUriString(), JsonNode.class);
+            JsonNode body = res.getBody();
+            if (body == null || body.get("items") == null) break;
 
-        String url = builder.toUriString();
-        ResponseEntity<JsonNode> response = restTemplate.getForEntity(url, JsonNode.class);
-        JsonNode body = response.getBody();
-        if (body == null || body.get("items") == null) {
-            log.warn("❌ YouTube API 응답에 items가 없습니다. region={}, categoryId={}", r, c);
-            return List.of();
+            for (JsonNode item : body.get("items")) out.add(PopularVideoResponse.from(item));
+            pageToken = body.has("nextPageToken") ? body.get("nextPageToken").asText(null) : null;
+            if (pageToken == null) break;
         }
-
-        JsonNode items = body.get("items");
-        return StreamSupport.stream(items.spliterator(), false)
-                .map(PopularVideoResponse::from)
-                .toList();
+        return out.size() > 100 ? out.subList(0, 100) : out;
     }
 
     private void cacheAndSaveSnapshot(String redisKey, List<PopularVideoResponse> videos, String region, String categoryId) {
