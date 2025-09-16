@@ -1,6 +1,5 @@
 package com.tubeten.ten.api.service;
 
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tubeten.ten.api.dto.PopularVideoResponse;
 import com.tubeten.ten.domain.PopularVideoWithTrend;
@@ -23,33 +22,29 @@ public class PopularVideoTrendService {
     private final VideoSnapshotRepository snapshotRepository;
 
     public List<PopularVideoWithTrend> getTopWithTrend(String region, String categoryId, int size) {
-        String redisKey = "top" + size + ":" + region + (categoryId != null ? ":" + categoryId : ":all");
-        String json = redisTemplate.opsForValue().get(redisKey);
+        String r = region == null ? "KR" : region.toUpperCase();
+        String c = (categoryId == null || categoryId.isBlank()) ? null : categoryId.trim();
+        String redisKey = "top" + size + ":" + r + (c != null ? ":" + c : ":all");
 
-        if (json == null) {
-            throw new IllegalStateException("Redis에 Top" + size + " 캐시가 없습니다: " + redisKey);
-        }
+        String json = redisTemplate.opsForValue().get(redisKey);
+        if (json == null) throw new IllegalStateException("Redis에 Top" + size + " 캐시가 없습니다: " + redisKey);
 
         List<PopularVideoResponse> currentList;
         try {
-            currentList = objectMapper.readValue(json, new TypeReference<>() {});
+            currentList = objectMapper.readValue(json, new com.fasterxml.jackson.core.type.TypeReference<>() {});
         } catch (Exception e) {
             throw new RuntimeException("Redis JSON 파싱 실패", e);
         }
 
-        // 30분 전 snapshot 기준
         LocalDateTime compareBase = LocalDateTime.now().minusMinutes(30);
-        Optional<VideoSnapshot> latestSnapshotOpt =
-                snapshotRepository.findTop1ByRegionCodeAndCategoryIdAndSnapshotTimeLessThanOrderBySnapshotTimeDesc(
-                        region, categoryId, compareBase);
+        var latestSnapshotOpt = snapshotRepository
+                .findTop1ByRegionCodeAndCategoryIdAndSnapshotTimeLessThanOrderBySnapshotTimeDesc(r, c, compareBase);
 
-        if (latestSnapshotOpt.isEmpty()) {
-            return markAllAsNew(currentList);
-        }
+        if (latestSnapshotOpt.isEmpty()) return markAllAsNew(currentList);
 
         LocalDateTime compareTime = latestSnapshotOpt.get().getSnapshotTime();
         List<VideoSnapshot> previousSnapshots =
-                snapshotRepository.findBySnapshotTimeAndRegionCodeAndCategoryId(compareTime, region, categoryId);
+                snapshotRepository.findBySnapshotTimeAndRegionCodeAndCategoryId(compareTime, r, c);
 
         Map<String, Integer> previousRankMap = previousSnapshots.stream()
                 .collect(Collectors.toMap(VideoSnapshot::getVideoId, VideoSnapshot::getRank));
@@ -58,28 +53,20 @@ public class PopularVideoTrendService {
         for (int i = 0; i < currentList.size(); i++) {
             PopularVideoResponse video = currentList.get(i);
             int currentRank = i + 1;
-            Integer previousRank = previousRankMap.get(video.getVideoId());
+            Integer previousRank = previousRankMap.get(video.videoId());
 
             String trend;
             Integer rankDiff = null;
-
             if (previousRank == null) {
                 trend = "new";
             } else {
                 rankDiff = Math.abs(currentRank - previousRank);
-                if (currentRank < previousRank) {
-                    trend = "↑";
-                } else if (currentRank > previousRank) {
-                    trend = "↓";
-                } else {
-                    trend = "→";
-                    rankDiff = 0;
-                }
+                if (currentRank < previousRank) trend = "↑";
+                else if (currentRank > previousRank) trend = "↓";
+                else { trend = "→"; rankDiff = 0; }
             }
-
             result.add(PopularVideoWithTrend.of(video, trend, rankDiff));
         }
-
         return result;
     }
 

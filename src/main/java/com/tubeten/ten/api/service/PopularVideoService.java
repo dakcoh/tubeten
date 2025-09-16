@@ -5,9 +5,9 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tubeten.ten.api.dto.PopularVideoResponse;
-import com.tubeten.ten.domain.PopularVideoWithTrend;
 import com.tubeten.ten.api.repository.VideoSnapshotRepository;
 import com.tubeten.ten.config.YoutubeApiConfig;
+import com.tubeten.ten.domain.PopularVideoWithTrend;
 import com.tubeten.ten.domain.VideoSnapshot;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -20,8 +20,7 @@ import org.springframework.web.util.UriComponentsBuilder;
 import java.net.URI;
 import java.time.Duration;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 import java.util.stream.StreamSupport;
 
 @Slf4j
@@ -36,54 +35,70 @@ public class PopularVideoService {
     private final ObjectMapper objectMapper;
     private final RestTemplate restTemplate = new RestTemplate();
 
+    // 규칙: region = 대문자, categoryId = null 이면 all
+    private static String normRegion(String region) {
+        return region == null ? "KR" : region.toUpperCase();
+    }
+    private static String normCat(String cat) {
+        return (cat == null || cat.isBlank()) ? null : cat.trim();
+    }
+    private static String key(String region, String categoryId) {
+        return "top100:" + region + (categoryId != null ? ":" + categoryId : ":all");
+    }
+
     private List<PopularVideoResponse> fetchYoutubeTop100(String regionCode, String categoryId) {
+        String r = normRegion(regionCode);
+        String c = normCat(categoryId);
+
         UriComponentsBuilder builder = UriComponentsBuilder
                 .fromUri(URI.create(youtubeApiConfig.getBaseUrl() + "/videos"))
                 .queryParam("part", "snippet,statistics,contentDetails")
                 .queryParam("chart", "mostPopular")
-                .queryParam("regionCode", regionCode)
+                .queryParam("regionCode", r)
                 .queryParam("maxResults", 100)
                 .queryParam("key", youtubeApiConfig.getKey());
 
-        if (categoryId != null && !categoryId.isBlank()) {
-            builder.queryParam("videoCategoryId", categoryId);
-        }
+        if (c != null) builder.queryParam("videoCategoryId", c);
 
         String url = builder.toUriString();
         ResponseEntity<JsonNode> response = restTemplate.getForEntity(url, JsonNode.class);
         JsonNode body = response.getBody();
         if (body == null || body.get("items") == null) {
-            log.warn("❌ YouTube API 응답에 items가 없습니다.");
+            log.warn("❌ YouTube API 응답에 items가 없습니다. region={}, categoryId={}", r, c);
             return List.of();
         }
 
         JsonNode items = body.get("items");
-
         return StreamSupport.stream(items.spliterator(), false)
                 .map(PopularVideoResponse::from)
                 .toList();
     }
 
     private void cacheAndSaveSnapshot(String redisKey, List<PopularVideoResponse> videos, String region, String categoryId) {
+        String r = normRegion(region);
+        String c = normCat(categoryId);
         LocalDateTime now = LocalDateTime.now();
 
-        List<VideoSnapshot> snapshots = new ArrayList<>();
-        for (int i = 0; i < videos.size(); i++) {
-            PopularVideoResponse v = videos.get(i);
-            snapshots.add(VideoSnapshot.builder()
-                    .videoId(v.getVideoId())
-                    .title(v.getTitle())
-                    .channelTitle(v.getChannelTitle())
-                    .rank(i + 1)
-                    .viewCount(v.getViewCount())
-                    .regionCode(region)
-                    .categoryId(categoryId)
-                    .snapshotTime(now)
-                    .build());
+        if (!videos.isEmpty()) {
+            List<VideoSnapshot> snapshots = new ArrayList<>(videos.size());
+            for (int i = 0; i < videos.size(); i++) {
+                PopularVideoResponse v = videos.get(i);
+                snapshots.add(VideoSnapshot.builder()
+                        .videoId(v.videoId())
+                        .title(v.title())
+                        .channelTitle(v.channelTitle())
+                        .rank(i + 1)
+                        .viewCount(v.viewCount())
+                        .regionCode(r)
+                        .categoryId(c)
+                        .snapshotTime(now)
+                        .build());
+            }
+            videoSnapshotRepository.saveAll(snapshots);
+            log.info("✅ Snapshot 저장 완료: {}건 ({}, {})", snapshots.size(), r, c);
+        } else {
+            log.info("ℹ️ Snapshot 생략: 빈 목록 ({}, {})", r, c);
         }
-
-        videoSnapshotRepository.saveAll(snapshots);
-        log.info("✅ Snapshot 저장 완료: {}건 ({}, {})", snapshots.size(), region, categoryId);
 
         try {
             String json = objectMapper.writeValueAsString(videos);
@@ -93,41 +108,45 @@ public class PopularVideoService {
         }
     }
 
-    public List<PopularVideoWithTrend> getPopularVideosWithAutoTrend(
-            String regionCode, String categoryId, int offset, int limit
-    ) {
-        String redisKey = "top100:" + regionCode + (categoryId != null ? ":" + categoryId : ":all");
-        String cached = redisTemplate.opsForValue().get(redisKey);
+    public List<PopularVideoWithTrend> getPopularVideosWithAutoTrend(String regionCode, String categoryId, int offset, int limit) {
+        String r = normRegion(regionCode);
+        String c = normCat(categoryId);
+        String redisKey = key(r, c);
 
         List<PopularVideoResponse> videos;
+        String cached = redisTemplate.opsForValue().get(redisKey);
 
         if (cached != null) {
             log.info("✅ Redis 캐시 조회 성공: {}", redisKey);
             try {
                 videos = objectMapper.readValue(cached, new TypeReference<>() {});
-            } catch (JsonProcessingException e) {
+            } catch (Exception e) {
                 log.error("❌ Redis 파싱 실패 - fallback: {}", redisKey, e);
-                videos = fetchYoutubeTop100(regionCode, categoryId);
+                // 불량 캐시 제거 후 재생성
+                redisTemplate.delete(redisKey);
+                videos = fetchYoutubeTop100(r, c);
+                cacheAndSaveSnapshot(redisKey, videos, r, c);
             }
         } else {
             log.warn("❌ Redis MISS - YouTube API 호출: {}", redisKey);
-            videos = fetchYoutubeTop100(regionCode, categoryId);
-            cacheAndSaveSnapshot(redisKey, videos, regionCode, categoryId);
+            videos = fetchYoutubeTop100(r, c);
+            cacheAndSaveSnapshot(redisKey, videos, r, c);
         }
+
+        if (videos.isEmpty()) return List.of();
 
         int toIndex = Math.min(offset + limit, videos.size());
         if (offset >= toIndex) return List.of();
 
-        List<PopularVideoResponse> page = videos.subList(offset, toIndex);
-
-        if (videoSnapshotRepository.existsByRegionCodeAndCategoryId(regionCode, categoryId)) {
-            List<PopularVideoWithTrend> fullList = popularVideoTrendService.getTopWithTrend(regionCode, categoryId, 100);
-            return fullList.subList(offset, toIndex);
-        } else {
-            return page.stream()
-                    .map(video -> PopularVideoWithTrend.of(video, "new"))
-                    .toList();
+        // 트렌드가 있으면 트렌드 기준으로 페이징 반환
+        if (videoSnapshotRepository.existsByRegionCodeAndCategoryId(r, c)) {
+            List<PopularVideoWithTrend> full = popularVideoTrendService.getTopWithTrend(r, c, 100);
+            return full.subList(offset, toIndex);
         }
+
+        // 초기 스냅샷만 있고 비교 기준 없음 → new
+        List<PopularVideoResponse> page = videos.subList(offset, toIndex);
+        return page.stream().map(v -> PopularVideoWithTrend.of(v, "new")).toList();
     }
 
     public List<PopularVideoResponse> getPopularVideosRaw(String regionCode, String categoryId) {

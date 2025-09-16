@@ -1,58 +1,47 @@
 package com.tubeten.ten.api.dto;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.databind.JsonNode;
-import lombok.Builder;
-import lombok.Getter;
 
-@Getter
-@Builder
-public class PopularVideoResponse {
-
-    private String videoId;
-    private String title;
-    private String channelTitle;
-    private long viewCount;
-    private long likeCount;
-    private long commentCount;
-    private String videoUrl;
-    private boolean isShorts;
-
+@JsonIgnoreProperties(ignoreUnknown = true)
+public record PopularVideoResponse(
+        String videoId,
+        String title,
+        String channelTitle,
+        long viewCount,
+        long likeCount,
+        long commentCount,
+        String videoUrl,
+        @JsonAlias("isShorts") boolean shorts
+) {
     public static PopularVideoResponse from(JsonNode item) {
-        String videoId = item.get("id").asText();
-        JsonNode snippet = item.get("snippet");
-        JsonNode statistics = item.get("statistics");
+        JsonNode snippet = item.path("snippet");
+        JsonNode statistics = item.path("statistics");
 
-        String title = snippet.get("title").asText();
-        String channelTitle = snippet.get("channelTitle").asText();
+        String videoId = item.path("id").asText("");
+        String title = snippet.path("title").asText("");
+        String channelTitle = snippet.path("channelTitle").asText("");
 
-        long viewCount = statistics.has("viewCount") ? statistics.get("viewCount").asLong() : 0;
-        long likeCount = statistics.has("likeCount") ? statistics.get("likeCount").asLong() : 0;
-        long commentCount = statistics.has("commentCount") ? statistics.get("commentCount").asLong() : 0;
+        long viewCount = statistics.path("viewCount").asLong(0L);
+        long likeCount = statistics.path("likeCount").asLong(0L);
+        long commentCount = statistics.path("commentCount").asLong(0L);
 
-        // Shorts 여부: 썸네일 URL이나 title, tags 등에 기반한 간단 필터
-        boolean isShorts = false;
+        boolean shorts = detectShorts(snippet, title);
+        String videoUrl = videoId.isEmpty() ? null : "https://www.youtube.com/watch?v=" + videoId;
+
+        return new PopularVideoResponse(
+                videoId, title, channelTitle, viewCount, likeCount, commentCount, videoUrl, shorts
+        );
+    }
+
+    private static boolean detectShorts(JsonNode snippet, String title) {
         if (snippet.has("tags")) {
             for (JsonNode tag : snippet.get("tags")) {
-                if (tag.asText().toLowerCase().contains("shorts")) {
-                    isShorts = true;
-                    break;
-                }
+                if (tag.asText().toLowerCase().contains("shorts")) return true;
             }
         }
-        // fallback: 제목에 "[Shorts]" 포함 등
-        if (title.toLowerCase().contains("shorts")) {
-            isShorts = true;
-        }
-
-        return PopularVideoResponse.builder()
-                .videoId(videoId)
-                .title(title)
-                .channelTitle(channelTitle)
-                .viewCount(viewCount)
-                .likeCount(likeCount)
-                .commentCount(commentCount)
-                .videoUrl("https://www.youtube.com/watch?v=" + videoId)
-                .isShorts(isShorts)
-                .build();
+        String t = title == null ? "" : title.toLowerCase();
+        return t.contains("shorts") || t.contains("[shorts]");
     }
 }
