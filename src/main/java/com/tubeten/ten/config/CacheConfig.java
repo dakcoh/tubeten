@@ -1,6 +1,5 @@
 package com.tubeten.ten.config;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.cache.CacheManager;
 import org.springframework.cache.annotation.EnableCaching;
 import org.springframework.context.annotation.Bean;
@@ -17,8 +16,8 @@ import java.time.Duration;
 @EnableCaching
 class CacheConfig {
     @Bean
-    CacheManager cacheManager(RedisConnectionFactory cf, ObjectMapper om) {
-        var ser = new GenericJackson2JsonRedisSerializer(om);
+    CacheManager cacheManager(RedisConnectionFactory cf) {
+        var ser = new GenericJackson2JsonRedisSerializer();
         var base = RedisCacheConfiguration.defaultCacheConfig()
                 .disableCachingNullValues()
                 .serializeValuesWith(RedisSerializationContext.SerializationPair.fromSerializer(ser))

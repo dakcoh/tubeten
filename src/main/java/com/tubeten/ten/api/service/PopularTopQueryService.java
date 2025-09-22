@@ -17,10 +17,9 @@ public class PopularTopQueryService {
     private final YoutubeApiConfig youtubeApiConfig;
     private final RestTemplate restTemplate = new RestTemplate();
 
-    @Cacheable(
-            cacheNames = "top",
-            key = "T(java.lang.String).format('%s:%s:%s', #region?:'KR', (#categoryId?:'all'), #size)",
-            sync = true
+    @Cacheable(cacheNames="top",
+            key="T(java.lang.String).format('%s:%s:%s',(#region==null?'KR':#region.toUpperCase()),((#categoryId==null||#categoryId.isEmpty())?'all':#categoryId),#size)",
+            sync=true
     )
     public List<PopularVideoResponse> getCurrentTop(String region, String categoryId, int size) {
         String r = region == null ? "KR" : region.toUpperCase();
