@@ -1,7 +1,7 @@
-package com.tubeten.ten.api.service;
+package com.tubeten.ten.api.popularvideo.service;
 
-import com.tubeten.ten.api.dto.PopularVideoResponse;
-import com.tubeten.ten.api.repository.VideoSnapshotRepository;
+import com.tubeten.ten.api.popularvideo.dto.PopularVideoResponse;
+import com.tubeten.ten.api.popularvideo.repository.VideoSnapshotRepository;
 import com.tubeten.ten.domain.PopularVideoWithTrend;
 import com.tubeten.ten.domain.VideoSnapshot;
 import lombok.RequiredArgsConstructor;
@@ -59,12 +59,5 @@ public class PopularVideoService {
         int toIndex = Math.min(offset + limit, withTrend.size());
         if (offset >= toIndex) return List.of();
         return withTrend.subList(offset, toIndex);
-    }
-
-    // 필요 시 원본 Top만 반환
-    public List<PopularVideoResponse> getPopularVideosRaw(String regionCode, String categoryId) {
-        String r = regionCode == null ? "KR" : regionCode.toUpperCase();
-        String c = (categoryId == null || categoryId.isBlank()) ? null : categoryId.trim();
-        return topQuery.getCurrentTop(r, c, 100);
     }
 }

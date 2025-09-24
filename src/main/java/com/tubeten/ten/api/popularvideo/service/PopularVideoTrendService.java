@@ -1,7 +1,7 @@
-package com.tubeten.ten.api.service;
+package com.tubeten.ten.api.popularvideo.service;
 
-import com.tubeten.ten.api.dto.PopularVideoResponse;
-import com.tubeten.ten.api.repository.VideoSnapshotRepository;
+import com.tubeten.ten.api.popularvideo.dto.PopularVideoResponse;
+import com.tubeten.ten.api.popularvideo.repository.VideoSnapshotRepository;
 import com.tubeten.ten.domain.PopularVideoWithTrend;
 import com.tubeten.ten.domain.VideoSnapshot;
 import lombok.RequiredArgsConstructor;

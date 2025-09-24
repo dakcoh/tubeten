@@ -1,4 +1,4 @@
-package com.tubeten.ten.api.dto;
+package com.tubeten.ten.api.popularvideo.dto;
 
 import com.fasterxml.jackson.annotation.JsonAlias;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;

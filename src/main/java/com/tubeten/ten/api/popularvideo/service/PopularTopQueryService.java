@@ -1,6 +1,6 @@
-package com.tubeten.ten.api.service;
+package com.tubeten.ten.api.popularvideo.service;
 
-import com.tubeten.ten.api.dto.PopularVideoResponse;
+import com.tubeten.ten.api.popularvideo.dto.PopularVideoResponse;
 import com.tubeten.ten.config.YoutubeApiConfig;
 import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.Cacheable;
