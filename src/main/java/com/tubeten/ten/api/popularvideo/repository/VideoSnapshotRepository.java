@@ -1,4 +1,4 @@
-package com.tubeten.ten.api.repository;
+package com.tubeten.ten.api.popularvideo.repository;
 
 import com.tubeten.ten.domain.VideoSnapshot;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -23,16 +23,6 @@ public interface VideoSnapshotRepository extends JpaRepository<VideoSnapshot, Lo
             @Param("region") String region,
             @Param("categoryId") String categoryId
     );
-
-    // 비교용 exists (자동 비교에 사용)
-    @Query("""
-        SELECT COUNT(v) > 0
-        FROM VideoSnapshot v
-        WHERE v.regionCode = :region
-          AND (:categoryId IS NULL OR v.categoryId = :categoryId)
-    """)
-    boolean existsByRegionCodeAndCategoryId(@Param("region") String region,
-                                            @Param("categoryId") String categoryId);
 
     Optional<VideoSnapshot> findTop1ByRegionCodeAndCategoryIdAndSnapshotTimeLessThanOrderBySnapshotTimeDesc(
             String regionCode,

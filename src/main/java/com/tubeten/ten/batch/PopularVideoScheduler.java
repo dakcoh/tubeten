@@ -1,20 +1,17 @@
 package com.tubeten.ten.batch;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.tubeten.ten.api.dto.PopularVideoResponse;
-import com.tubeten.ten.api.repository.VideoSnapshotRepository;
-import com.tubeten.ten.api.service.PopularVideoService;
+import com.tubeten.ten.api.popularvideo.dto.PopularVideoResponse;
+import com.tubeten.ten.api.popularvideo.service.PopularTopQueryService;
+import com.tubeten.ten.api.popularvideo.repository.VideoSnapshotRepository;
 import com.tubeten.ten.domain.VideoSnapshot;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
-import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 @Slf4j
@@ -22,10 +19,8 @@ import java.util.List;
 @RequiredArgsConstructor
 public class PopularVideoScheduler {
 
-    private final PopularVideoService popularVideoService;
-    private final StringRedisTemplate redisTemplate;
+    private final PopularTopQueryService topQuery;
     private final VideoSnapshotRepository videoSnapshotRepository;
-    private final ObjectMapper objectMapper;
 
     @Value("${tubeten.scheduler.regions}")
     private List<String> regions;
@@ -34,52 +29,60 @@ public class PopularVideoScheduler {
     private List<String> categories;
 
     @Scheduled(cron = "0 0/30 * * * *")
-    public void fetchAndCacheTop100() {
-        log.info("\uD83D\uDD04 유튜브 Top10 수집 시작");
+    public void warmupAndSnapshotTop100() {
+        log.info("🔄 유튜브 Top100 웜업 시작");
 
-        for (String region : regions) {
-            for (String categoryId : (categories.isEmpty() ? List.of((String) null) : categories)) {
+        for (String regionRaw : regions) {
+            String region = normRegion(regionRaw);
+
+            List<String> cats = new ArrayList<>(categories == null ? List.of() : categories);
+            if (!cats.contains(null)) cats.add(null); // all 포함
+
+            for (String categoryIdRaw : cats) {
+                String categoryId = normCat(categoryIdRaw);
                 try {
-                    // ✅ Top100 조회
-                    List<PopularVideoResponse> top100 = popularVideoService.getPopularVideosRaw(region, categoryId);
+                    // ✅ @Cacheable("top") 경유 → 캐시 웜업 + 데이터 획득
+                    List<PopularVideoResponse> top100 = topQuery.getCurrentTop(region, categoryId, 100);
 
-                    // ✅ Key 수정
-                    String redisKey = buildRedisKey(region, categoryId);
-                    String json = objectMapper.writeValueAsString(top100);
-                    redisTemplate.opsForValue().set(redisKey, json, Duration.ofHours(1));
-                    log.info("✅ Redis 저장 완료: {}", redisKey);
+                    // 선택: 스냅샷 저장
+                    saveSnapshot(top100, region, categoryId);
 
-                    // ✅ Snapshot 저장
-                    LocalDateTime now = LocalDateTime.now();
-                    int rank = 1;
-                    for (PopularVideoResponse video : top100) {
-                        VideoSnapshot snapshot = VideoSnapshot.builder()
-                                .videoId(video.getVideoId())
-                                .title(video.getTitle())
-                                .channelTitle(video.getChannelTitle())
-                                .rank(rank++)
-                                .viewCount(video.getViewCount())
-                                .regionCode(region)
-                                .categoryId(categoryId)
-                                .snapshotTime(now)
-                                .build();
-                        videoSnapshotRepository.save(snapshot);
-                    }
-
-                    log.info("✅ DB Snapshot 저장 완료 - region={}, category={}", region, categoryId);
-
-                } catch (JsonProcessingException e) {
-                    log.error("❌ JSON 변환 실패 - region={}, category={}", region, categoryId, e);
                 } catch (Exception e) {
-                    log.error("❌ 스케줄러 실행 실패 - region={}, category={}", region, categoryId, e);
+                    log.error("❌ 웜업/스냅샷 실패 - region={}, category={}", region, categoryId, e);
                 }
             }
         }
-
-        log.info("\uD83C\uDF89 유튜브 Top10 수집 완료");
+        log.info("🎉 유튜브 Top100 웜업 완료");
     }
 
-    private String buildRedisKey(String region, String categoryId) {
-        return "top100:" + region + (categoryId != null ? ":" + categoryId : ":all");  // ✅ 여기도 수정
+    private void saveSnapshot(List<PopularVideoResponse> list, String region, String categoryId) {
+        if (list == null || list.isEmpty()) {
+            log.info("ℹ️ 스냅샷 생략: 빈 목록 - region={}, category={}", region, categoryId);
+            return;
+        }
+        LocalDateTime now = LocalDateTime.now();
+        List<VideoSnapshot> batch = new ArrayList<>(list.size());
+        for (int i = 0; i < list.size(); i++) {
+            var v = list.get(i);
+            batch.add(VideoSnapshot.builder()
+                    .videoId(v.videoId())
+                    .title(v.title())
+                    .channelTitle(v.channelTitle())
+                    .rank(i + 1)
+                    .viewCount(v.viewCount())
+                    .regionCode(region)
+                    .categoryId(categoryId)
+                    .snapshotTime(now)
+                    .build());
+        }
+        videoSnapshotRepository.saveAll(batch);
+        log.info("✅ DB Snapshot 저장 완료 - region={}, category={}, count={}", region, categoryId, batch.size());
+    }
+
+    private static String normRegion(String region) {
+        return region == null ? "KR" : region.toUpperCase();
+    }
+    private static String normCat(String cat) {
+        return (cat == null || cat.isBlank()) ? null : cat.trim();
     }
 }
