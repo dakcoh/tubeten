@@ -1,7 +1,6 @@
 package com.tubeten.ten.domain;
 
-import com.tubeten.ten.api.dto.PopularVideoResponse;
-import lombok.*;
+import com.tubeten.ten.api.popularvideo.dto.PopularVideoResponse;
 
 public record PopularVideoWithTrend(
         String videoId, String title, String channelTitle,
