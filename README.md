@@ -4,7 +4,6 @@
 본 프로젝트는 ChatGPT의 기술적 조언과 코드 예시를 참고하여 설계 및 구현되었습니다.
 
 ---
-![img.png](src/main/resources/static/img.png)
 ## 주요 기능
 - YouTube 인기 영상 Top 10 수집 (국가 / 카테고리 기준)
 - 30분마다 스케줄러 실행으로 데이터 자동 수집
@@ -53,10 +52,14 @@
 
 ---
 ## 테스트 확인
-### API 확인 (POSTMAN 활용)
-![image](https://github.com/user-attachments/assets/85816319-6a96-4c03-8016-857be50e488b)
-### 캐싱 확인 (Docker + Redis 활용)
-![image](https://github.com/user-attachments/assets/efe3fbbd-1c65-4cca-853a-0117ddd08684)
+### batch 실행
+<img width="843" height="379" alt="image" src="https://github.com/user-attachments/assets/0681cf9a-c2aa-4070-a3a4-43beed38ed39" />
+
+- 실시간 순위 데이터 저장
+- 30분마다 redis 캐싱
+### Redis
+<img width="732" height="345" alt="image" src="https://github.com/user-attachments/assets/9a3cbdad-8f4f-4842-833f-5f51cfe45316" />
+
 - 캐싱된 데이터 조회 확인
 - 30분마다 snapshot 데이터 저장 및 캐싱 확인 가능
 
