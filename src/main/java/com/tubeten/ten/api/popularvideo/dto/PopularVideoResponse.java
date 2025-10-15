@@ -13,7 +13,8 @@ public record PopularVideoResponse(
         long likeCount,
         long commentCount,
         String videoUrl,
-        @JsonAlias("isShorts") boolean shorts
+        @JsonAlias("isShorts") boolean shorts,
+        String categoryId
 ) {
     public static PopularVideoResponse from(JsonNode item) {
         JsonNode snippet = item.path("snippet");
@@ -22,6 +23,7 @@ public record PopularVideoResponse(
         String videoId = item.path("id").asText("");
         String title = snippet.path("title").asText("");
         String channelTitle = snippet.path("channelTitle").asText("");
+        String categoryId = snippet.path("categoryId").asText("");
 
         long viewCount = statistics.path("viewCount").asLong(0L);
         long likeCount = statistics.path("likeCount").asLong(0L);
@@ -31,7 +33,7 @@ public record PopularVideoResponse(
         String videoUrl = videoId.isEmpty() ? null : "https://www.youtube.com/watch?v=" + videoId;
 
         return new PopularVideoResponse(
-                videoId, title, channelTitle, viewCount, likeCount, commentCount, videoUrl, shorts
+                videoId, title, channelTitle, viewCount, likeCount, commentCount, videoUrl, shorts, categoryId
         );
     }
 

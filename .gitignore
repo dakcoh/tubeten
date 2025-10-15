@@ -4,7 +4,33 @@ build/
 !gradle/wrapper/gradle-wrapper.jar
 !**/src/main/**/build/
 !**/src/test/**/build/
-*.yml
+
+# 환경변수 및 민감한 설정 파일
+.env
+.env.example
+
+# API 키 및 민감한 정보
+**/application-prod.yml
+**/application-local.yml
+**/application.yml
+**/*secret*
+**/*key*
+**/*password*
+
+# 로그 파일
+logs/
+*.log
+nohup.out
+
+# 데이터베이스 파일
+*.db
+*.sqlite
+*.sqlite3
+
+# Docker 관련 (서버에서만 사용)
+Dockerfile*
+docker-compose*.yml
+deploy.sh
 
 ### STS ###
 .apt_generated

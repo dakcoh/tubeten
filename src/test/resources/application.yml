@@ -1,0 +1,19 @@
+spring:
+  application:
+    name: tubeten
+  profiles:
+    active: local
+
+youtube:
+  api:
+    key: "dummy"
+    base-url: https://www.googleapis.com/youtube/v3
+
+logging:
+  level:
+    root: INFO
+
+tubeten:
+  scheduler:
+    regions: KR,US,JP
+    categories: 10,20,24
