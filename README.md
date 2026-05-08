@@ -19,6 +19,8 @@
   <img src="https://img.shields.io/badge/MySQL-8.0-blue.svg">
   <img src="https://img.shields.io/badge/Redis-7-red.svg">
   <img src="https://img.shields.io/badge/Docker-8%20containers-2496ED.svg">
+  <img src="https://img.shields.io/badge/Resilience4j-2.x-6DB33F.svg">
+  <img src="https://img.shields.io/badge/Logback-1.5-lightgrey.svg">
 </p>
 
 ---
@@ -38,7 +40,7 @@
 ## 1. 개요
 
 조회수 절댓값이 아닌 **단위 시간당 증가 속도(Velocity)**로 YouTube 트렌드를 탐지하는 풀스택 웹 애플리케이션입니다.  
-3개국(KR/US/JP), 6개 카테고리를 30분 주기로 수집하여 랭킹을 산출하고, 캐시 히트 기준 평균 50ms 응답을 제공합니다.
+3개국(KR/US/JP), DB 관리형 카테고리(현재 6개 활성)를 30분 주기로 수집하여 랭킹을 산출하고, 캐시 히트 기준 평균 50ms 응답을 제공합니다.
 
 ### 핵심 수치
 
@@ -191,16 +193,18 @@ Velocity Score = Δview × 1.0
 
 ### 데이터 수명 주기
 
-| 테이블 | 보관 기간 | 비고 |
-|--------|----------|------|
-| `yt_video_snapshot` | 6개월 | 월별 RANGE 파티셔닝 |
-| `yt_trend_rank` | **3일** | 집계 후 자동 삭제 |
-| `yt_trend_rank_daily` | 영구 | avg/best/worst rank, snapshot_count |
-| `yt_dashboard_stat` | 90일 | |
-| `yt_creator_snapshot` | 90일 | |
-| `batch_job_history` | 1년 | |
+| 테이블 | 보관 기간 | 삭제 방식 | 비고 |
+|--------|----------|-----------|------|
+| `yt_video_snapshot` | **7일** | DROP PARTITION (O(1)) | 일별 파티셔닝, 집계 완료 확인 후 DROP |
+| `yt_trend_rank` | **3일** | DROP PARTITION (O(1)) | 일별 파티셔닝, 미적용 환경은 배치 DELETE 폴백 |
+| `yt_trend_rank_daily` | 영구 | — | avg/best/worst rank, snapshot_count |
+| `yt_video_snapshot_daily` | 영구 | — | view/like/comment 일별 증가량 |
+| `yt_dashboard_stat` | 90일 | 배치 DELETE | |
+| `yt_creator_snapshot` | 90일 (주간 압축) | 주간 집계 후 중간 데이터 삭제 | |
+| `batch_job_history` | 1년 | 배치 DELETE (1,000건 단위) | |
 
-매일 01:00 `DailyAggregation`이 전일 원본을 집계 후 검증(0건이면 스킵)하여 데이터 손실을 방지합니다.
+매일 01:00 `DailyAggregation`이 전일 원본을 집계 후 검증(0건이면 스킵)하여 데이터 손실을 방지합니다.  
+파티션 DROP 시에는 `yt_video_snapshot_daily` 집계 완료 여부를 사전 확인하여 원본 데이터 영구 소실을 방어합니다.
 
 ---
 
@@ -213,9 +217,10 @@ Velocity Score = Δview × 1.0
 | **Java 21** | Virtual Thread — I/O 블록 중 플랫폼 스레드 반납, 배치 병렬화 극대화 |
 | **Spring Boot 3.5** | 멀티 모듈, Spring Security + Actuator 생태계 |
 | **Spring Data JPA + QueryDSL** | 정적 타입 동적 쿼리, N+1 방지를 위한 fetch join / 벌크 쿼리 |
-| **Resilience4j** | Circuit Breaker + Retry + TimeLimiter — YouTube API 할당량 초과 자동 차단 |
+| **Resilience4j** | CircuitBreaker(COUNT_BASED, 실패율 50%) + Retry(지수 백오프 3회) — YouTube API 장애 차단 및 이벤트 전용 로그 파일 분리 |
+| **Logback** | 5파일 구조(전체·에러·배치·레질리언스·아카이브), 비동기 AsyncAppender, 14일 일별 롤링 |
 | **Flyway** | DB 마이그레이션 이력 관리 |
-| **MySQL 8.0** | 월별 파티셔닝, 윈도우 함수(`ROW_NUMBER`, `LAG`) 활용 |
+| **MySQL 8.0** | 일별 RANGE 파티셔닝 + DROP PARTITION(O(1)), 윈도우 함수(`ROW_NUMBER`, `LAG`) 활용 |
 | **Redis 7** | 3단계 캐시 계층, AOF 영속화, Gzip 압축, ETag 보관 |
 | **Micrometer + Actuator** | Prometheus 연동, `@LogExecution` AOP 성능 로깅 |
 
@@ -279,6 +284,73 @@ BusinessException(ErrorCode)
 
 DTO에서 서비스를 직접 호출하던 구조를 제거하고, 컨트롤러에서 Map으로 사전 조회 후 주입하는 방식으로 변경했습니다.
 
+### Resilience4j 정식 도입
+
+라이브러리는 `build.gradle`에 추가되어 있었으나 `application.yml`에 `resilience4j:` 설정 블록이 없어 실제로는 동작하지 않는 상태였습니다. 재시도 로직은 `ResilienceManagerImpl`의 수동 루프(try/catch × 3회)로만 구현되어 있었고, 할당량 초과·채널 없음·권한 오류가 구분 없이 재시도 대상이 되고 있었습니다.
+
+**`Resilience4jConfig.java`를 신규 작성하여 `youtube-api` 인스턴스를 직접 정의했습니다.**
+
+| 항목 | 설정값 |
+|------|-------|
+| CircuitBreaker | COUNT_BASED 윈도우 20건, 실패율 50% → OPEN, OPEN 60초 유지 |
+| 슬로우콜 | 10초 이상, 비율 80% → OPEN |
+| Retry | 최대 3회, 지수 백오프 1s→2s→4s (최대 30s), 지터 ±10% |
+| 재시도 대상 | 5xx, 429 TooManyRequests, 네트워크 오류 |
+| 무시(즉시 포기) | `ChannelNotFoundException`, `YouTubeQuotaExceededException`, `YouTubeResilienceException` |
+
+`ResilienceManagerImpl`의 수동 루프를 `CircuitBreaker.decorateSupplier(cb, Retry.decorateSupplier(retry, supplier))` 한 줄로 교체하고, 각 레지스트리 빈에 이벤트 컨슈머를 등록하여 CB 상태 전환·재시도 이벤트를 `resilience4j.events` 전용 로거로 기록합니다.
+
+> **→** 인프라 장애(5xx/네트워크)는 재시도, 비즈니스 오류(채널 없음·할당량)는 즉시 포기. OPEN 상태에서 `CallNotPermittedException` 즉시 반환으로 배치 스레드 블로킹 차단.
+
+### 구조적 로그 분리 (Logback)
+
+초기에는 콘솔 출력만 있어 배치 에러가 발생했을 때 서버에 접속하여 실시간 출력을 확인하거나 Docker 컨테이너 로그를 탐색해야 했습니다. WARN 레벨 이상 이벤트가 별도로 모이지 않아 모니터링이 어려웠습니다.
+
+`logback-spring.xml`을 전면 재설계하여 `spring.application.name`을 파일명 접두사로 활용하는 5종 파일 구조를 구성했습니다.
+
+```
+/app/logs/
+├── tubeten-batch.log            INFO+  전체 로그
+├── tubeten-batch-error.log      WARN+  에러 전용 (14일 보관)
+├── tubeten-batch-batch.log      배치 스케줄러·파사드·YouTube API 전용
+├── tubeten-batch-resilience.log CB·Retry 이벤트 전용
+└── archive/                     일별 .gz 압축 보관 (14일 후 자동 삭제)
+```
+
+- **ThresholdFilter(WARN)** — 기존 `LevelFilter(ERROR only)`에서 변경, 중요 WARN(채널 비활성화·슬로우쿼리 등) 누락 방지
+- **`additivity=false` 버그 수정** — 스케줄러 로거에 ERROR_FILE 어펜더 미참조 상태였던 버그 발견. `ASYNC_ERROR` appender-ref를 모든 `additivity=false` 로거에 명시
+- **AsyncAppender** — `neverBlock=true`(전체·배치·레질리언스)로 로그 I/O가 배치 스레드를 블로킹하지 않음. `neverBlock=false`(에러)로 WARN/ERROR는 절대 드랍하지 않음
+- **14일 자동 삭제** — `maxHistory=14`, `totalSizeCap` 초과 시 오래된 파일부터 자동 제거
+
+### 카테고리 공통화 — DB 기반 동적 카테고리 시스템
+
+초기에는 카테고리 목록이 프론트엔드 각 화면에 하드코딩되어 있어, 새 카테고리를 활성화하려면 `useDashboard.js`, `useChannelDashboard.js`, `App.vue` 등 여러 파일을 수동으로 수정하고 재배포해야 했습니다.
+
+**구조적 문제**
+
+- `useDashboard.js`, `useChannelDashboard.js`, `App.vue`에 카테고리 배열이 각각 독립적으로 정의됨
+- `CATEGORY_NAMES` 정적 맵과 `FALLBACK_NAMES`가 두 파일에 중복 정의
+- `CategoryTabs` 컴포넌트가 하드코딩된 4개 카테고리를 기본값 props로 보유
+- `getCategoryName()` 함수가 정적 맵만 참조하여 DB 변경이 UI에 반영되지 않음
+
+**해결 — 단일 데이터 흐름 확립**
+
+```
+DB (yt_category.active = 1)
+  → GET /api/categories?region=KR       (신규 공개 엔드포인트)
+    → stores/category.js                (Pinia, 지역별 캐싱)
+      → useCategoryStore().getName()    ← 모든 컴포넌트 단일 진입점
+        → fallback: CATEGORY_NAMES      (creatorHelpers.js 단일 소스)
+```
+
+- 백엔드에 인증 불필요한 `GET /api/categories` 엔드포인트 신규 추가
+- `useCategoryStore` — 지역별 캐싱(`byRegion`), `fetchForRegion()` 호출 시 첫 번째만 API 요청, `getName(id, region)` fallback 포함
+- 하드코딩 교체 파일: `useDashboard.js`, `useChannelDashboard.js`, `App.vue`, `RankHistoryChart.vue`, `ViralVelocityChart.vue`, `CategoryHeatmap.vue`, `Creators/index.vue`, `Creators/Detail.vue`
+- `adminCategory.js`의 `toggleActive()` 에서 `categoryStore.invalidate(region)` 호출 — Admin에서 카테고리를 토글하는 즉시 프론트 캐시 무효화, 다음 페이지 진입 시 자동 갱신
+- `CategoryTabs` props를 `required: true`로 변경하여 하드코딩 기본값 제거
+
+> **→** DB에서 `active = 0 → 1`로 변경하는 것만으로 배치 수집 시작 + 전체 화면 카테고리 버튼 자동 추가. 재배포 불필요.
+
 ### 인사이트 API 통합 — 캐시 미적용 이중 호출 제거
 
 크리에이터 상세 페이지에서 유사 크리에이터(`/insights/similar`)와 트렌드 영상(`/insights/trending-videos`)을 각각 별도 호출하고 있었습니다. 두 엔드포인트가 30분 TTL 인사이트 캐시를 거치지 않아 **매 페이지 로드마다 Jaccard 유사도 계산과 영상 검색 쿼리가 실행**됐습니다.
@@ -305,16 +377,31 @@ After (VirtualThreadPerTaskExecutor)
 
 수집 시간 94% 단축 — 30분 파이프라인 안에서 여유 구간 확보.
 
-### 월별 파티셔닝
+### 일별 파티셔닝 + DROP PARTITION
 
 초기 운영 시 `yt_video_snapshot`의 모든 데이터가 `pMAX` 파티션 하나에 집중되어, 랭킹 쿼리가 이 테이블을 서브쿼리로 3회 조인하면서 타임아웃이 빈번했습니다 (배치 성공률 50% 미만).
 
-월별 RANGE 파티셔닝 적용 + `REORGANIZE PARTITION`으로 기존 데이터를 재분배한 결과:
+`yt_trend_rank`(80,000행/일), `yt_video_snapshot` 두 테이블에 일별 RANGE 파티셔닝을 적용하고, 보존 기간이 지난 파티션을 `DROP PARTITION`으로 즉시 제거했습니다.
+
+```
+[명명 규칙]
+p + yyyyMMdd  (예: p20260506) — 9자 고정
+pMAX          — 캐치올 파티션 (스케줄러 장애 시 데이터 유실 방지)
+
+[관리 흐름 — 매일 01:00 DailyAggregationScheduler]
+  Step 0-A: 오늘~+7일치 파티션 없으면 선제 생성 (버퍼)
+  Step 0-B: 보존 기간 초과 파티션 DROP
+            └─ DROP 전 yt_video_snapshot_daily 집계 완료 확인
+               집계 미완료 → 보류 → 다음 날 자동 재시도
+```
+
+배치 DELETE(행 단위, undo log 팽창 + 인덱스 재구성)에서 DROP PARTITION(InnoDB 테이블스페이스 직접 제거)으로 전환하여 정리 연산이 O(n) → **O(1)** 로 개선됐습니다.
 
 | 지표 | Before | After |
 |------|--------|-------|
 | 랭킹 집계 시간 | 182초 | **2초** |
 | 배치 성공률 | 50% 미만 | **100%** |
+| 만료 파티션 정리 | O(n) 배치 DELETE | **O(1) DROP PARTITION** |
 
 ### Frontend 번들 최적화
 
@@ -388,12 +475,77 @@ GROUP BY t.creator_id
 
 prev 조인을 `LEFT JOIN`으로 변경하고 `COALESCE(prev.view_count, 0)` 처리하여, prev 데이터 부재 시에도 cur 스냅샷 기반으로 랭킹이 정상 생성됩니다.
 
+### yt_video_keyword 데드락 — `NOT_SUPPORTED` 전파로 갭 락 제거
+
+배치 실행 중 `yt_video_keyword` 테이블 INSERT 시 `Deadlock found when trying to get lock` 에러가 반복 발생했습니다. 3회 재시도 로직이 있었음에도 해소되지 않았습니다.
+
+**원인 분석**
+
+기존 `@Transactional(propagation = REQUIRES_NEW)`으로 묶인 배치 INSERT는 하나의 트랜잭션 안에서 수십 개의 `INSERT IGNORE`를 연속 실행했습니다. InnoDB는 각 `INSERT IGNORE`마다 갭 락(Gap Lock)을 트랜잭션 종료 시까지 축적하며, 여러 스레드가 같은 범위에 동시 삽입을 시도할 때 교착 상태가 발생합니다.
+
+**해결**
+
+```java
+// Before: 단일 트랜잭션 안에서 갭 락 누적
+@Transactional(propagation = Propagation.REQUIRES_NEW)
+
+// After: 문장 단위 auto-commit → 갭 락 즉시 해제
+@Transactional(propagation = Propagation.NOT_SUPPORTED)
+```
+
+`REQUIRES_NEW` 대신 `NOT_SUPPORTED`로 변경하여 각 `INSERT IGNORE`가 독립적으로 auto-commit되도록 했습니다. 갭 락이 문장 단위로 즉시 해제되므로 데드락이 구조적으로 발생할 수 없습니다.
+
+> **→** 데드락 재시도 로직 자체가 불필요해졌습니다. 혹시 모를 순간적 충돌에 대비해 단일 키워드 단위 ThreadLocalRandom 지터 재시도(1회)만 남겼습니다.
+
+### YouTube 채널 소실 — 불필요한 3회 재시도 + 자동 비활성화 누락
+
+새벽 03:05~03:07 배치 로그에서 두 채널(id=164, id=258)에 대해 `Invalid channel response from YouTube API` 오류가 3회씩 반복되고, 이후 배치에서도 동일하게 재발하는 것을 발견했습니다.
+
+**문제 1 — 영구 오류인데 3회 재시도**
+
+채널 삭제·차단·비공개는 재시도로 해결되지 않는 영구 오류입니다. 그런데 `ResilienceManagerImpl`의 catch 순서상 `ChannelNotFoundException`이 일반 `Exception` 블록에 걸려 3회 재시도 후 실패하고 있었습니다.
+
+```java
+// ResilienceManagerImpl — ChannelNotFoundException 전용 catch 추가
+} catch (ChannelNotFoundException e) {
+    log.debug("채널 없음 (재시도 없음): {}", e.getMessage());
+    throw e;  // 즉시 전파
+}
+```
+
+**문제 2 — YouTube API가 200에 에러 JSON을 반환하는 케이스 미처리**
+
+HTTP 응답 코드가 200이지만 body에 `{"error": {"code": 404, ...}}`가 포함된 경우, 기존 코드는 items 배열만 확인하여 `"Invalid channel response"`를 로깅하고 있었습니다. `ChannelNotFoundException`이 발생하지 않아 재시도까지 이어졌습니다.
+
+`parseChannelResponse`에 error 키 선처리를 추가하여 4xx 에러 JSON이면 즉시 `ChannelNotFoundException`을 던지도록 수정했습니다.
+
+**문제 3 — 채널 소실 후 자동 비활성화 누락**
+
+`CreatorUpdateFacade`가 `ChannelNotFoundException`을 일반 `Exception`으로 처리하여 ERROR 로그만 남기고, 크리에이터는 ACTIVE 상태를 유지한 채 다음 배치에서 또 API를 호출했습니다.
+
+`CreatorService.refreshCreatorInfo`에서 `ChannelNotFoundException` 포착 시 `creator.deactivate()` 후 저장하고, `CreatorUpdateFacade`에서는 WARN 레벨로 처리하도록 변경했습니다.
+
+> **→** 소실 채널은 첫 발견 시점에 즉시 INACTIVE 전환되어 이후 배치 대상에서 영구 제외됩니다.
+
+### 배치 타임아웃 반복 발생 — `batch_master` timeout_seconds 조정
+
+운영 로그에서 두 스케줄러가 매 실행마다 타임아웃으로 중단되는 것을 확인했습니다.
+
+| 스케줄러 | 기존 타임아웃 | 실제 소요 | 조치 |
+|---------|------------|---------|------|
+| `CreatorVideoTrendingSyncScheduler` | 600s | ~1,500s | 1,800s |
+| `CreatorVideoCollectorScheduler` | 7,200s | ~8,000s | 10,800s |
+
+Flyway 마이그레이션(`V26`)으로 `batch_master` 테이블 레코드를 UPDATE 처리하여 재배포 없이 반영했습니다. 동시에 `yt_video_keyword` 테이블에 `(video_id)` 인덱스와 `(video_id, keyword)` 유니크 키를 추가하여 데드락 픽스와 함께 키워드 중복 삽입 방어를 강화했습니다.
+
 ### 쇼츠 분석 쿼리 타임아웃
 
 히트맵 쿼리에서 `category_id != 'all'` 부정 조건이 인덱스를 무력화했습니다.
 
 2단계 쿼리(현재 시점 카테고리 목록 조회 → IN 절 필터링)로 분리하여 인덱스를 정확히 활용하도록 개선했습니다.  
 Nginx의 느린 집계 API 타임아웃 오판 문제는 엔드포인트별 타임아웃 설정 분리로 해결했습니다.
+
+`ShortsAnalyticsQueryService`의 `getCurrentAndPreviousStats` 쿼리(Q1)가 22초까지 치솟는 문제도 추가로 발견했습니다. DISTINCT ref_time 서브쿼리가 전체 이력을 스캔하는 것이 원인이었고, 24시간 윈도우 조건(`ref_time >= NOW() - INTERVAL 24 HOUR`)을 추가하여 스캔 범위를 배치 주기 내로 제한했습니다.
 
 ### 영상 분석 지표 — 4가지 버그 발견 및 수정
 
@@ -433,6 +585,85 @@ Day 4~7  ←  yt_trend_rank_daily  (일별 집계, 정오 시각 매핑)
 
 </details>
 
+### YouTube API 호출을 @Transactional로 감싸 발생한 DB 커넥션 누수
+
+운영 환경에서 `HikariCP leakDetectionThreshold(5분)` 경보가 반복 발생했습니다.
+
+**원인 분석**
+
+`TargetCollectionService.collectTargets()`에 `@Transactional`이 선언되어 있어, YouTube API 호출(15~23분 소요) 전 단계에서 DB 커넥션을 획득하고 API 응답을 기다리는 동안 커넥션을 그대로 보유했습니다.
+
+**해결**
+
+`@Transactional`을 제거하고 트랜잭션 경계를 DB 저장 메서드 단위로 분리했습니다.
+
+```java
+// Before: YouTube API 호출 포함 전체가 하나의 트랜잭션
+@Transactional
+public int collectTargets(...) {
+    List<...> videos = youtubeDataProvider.fetchPopularVideos(...);  // 최대 23분 API 대기
+    videoService.saveYouTubeVideos(videos);   // DB 저장
+    persistence.saveTargets(...);             // DB 저장
+}
+
+// After: 외부 I/O는 트랜잭션 밖. DB 저장 메서드가 각자 짧은 트랜잭션 소유
+public int collectTargets(...) {
+    List<...> videos = youtubeDataProvider.fetchPopularVideos(...);  // 트랜잭션 없음
+    videoService.saveYouTubeVideos(videos);   // 내부 @Transactional
+    persistence.saveTargets(...);             // 내부 @Transactional
+}
+```
+
+> **→** 커넥션 보유 시간이 API 레이턴시(최대 23분)에서 DB INSERT 시간(수 ms)으로 단축. HikariCP 경보 완전 해소.
+
+### UnexpectedRollbackException — @Transactional 루프와 내부 예외의 충돌
+
+`CreatorUpdateScheduler`가 매일 03:00에 시작 후 599초 만에 `UnexpectedRollbackException`으로 실패하는 문제가 반복됐습니다.
+
+**원인 분석**
+
+`CreatorUpdateFacade.updateAllActiveCreators()`에 `@Transactional`이 선언된 상태에서, 내부 루프의 `creatorService.refreshCreatorInfo()`가 삭제된 채널에 대해 예외를 던졌습니다. Spring은 예외를 `catch`로 잡아도 이미 외부 트랜잭션을 **rollback-only**로 마킹하기 때문에, 루프가 끝나고 메서드 종료 시 커밋 단계에서 `UnexpectedRollbackException`이 발생합니다.
+
+```
+외부 @Transactional 시작
+  └─ refreshCreatorInfo() 예외 발생
+       └─ Spring: 트랜잭션 rollback-only 마킹
+  └─ catch로 예외 잡음 → 루프 계속
+외부 @Transactional 커밋 시도
+  └─ rollback-only 감지 → UnexpectedRollbackException ❌
+```
+
+**해결**
+
+`discoverCreators()`, `updateAllActiveCreators()`, `discoverRapidGrowthCreators()` 세 메서드에서 `@Transactional` 제거.  
+개별 `refreshCreatorInfo()`, `saveCreator()` 메서드가 자체 `@Transactional`을 보유하므로 외부 트랜잭션이 불필요합니다.  
+600초짜리 YouTube API 루프를 단일 트랜잭션으로 묶지 않으므로 커넥션 장기 보유 문제도 동시에 해소됩니다.
+
+> **→** 채널별 실패가 전체 배치에 영향을 주지 않고, `UnexpectedRollbackException` 완전 해소.
+
+### TransactionRequiredException — Repository @Modifying 쿼리에 트랜잭션 누락
+
+`DataCleanupScheduler`가 매일 04:00에 `batch_job_history` 정리 단계에서 `TransactionRequiredException`으로 실패했습니다.
+
+**원인 분석**
+
+`BatchJobHistoryRepository.deleteOldHistoryBatch()`는 `@Modifying` 네이티브 DELETE 쿼리인데, 이를 호출하는 `default` 메서드 `deleteOldHistory()`와 스케줄러의 `cleanupBatchHistory()`에 `@Transactional`이 없었습니다. Spring Data JPA는 `@Modifying` 쿼리 실행 시 반드시 활성 트랜잭션을 요구합니다.
+
+**해결**
+
+```java
+// BatchJobHistoryRepository
+@Transactional   // 추가
+@Modifying
+@Query(value = "DELETE FROM batch_job_history WHERE started_at < :cutoffTime LIMIT :batchSize",
+       nativeQuery = true)
+int deleteOldHistoryBatch(...);
+```
+
+동일 패턴으로 이미 `@Transactional`이 적용되어 있는 `VideoTargetRepository.deleteOldTargetsBatch()`와 일관된 구조로 맞췄습니다.
+
+> **→** `DataCleanupScheduler` 정상화, batch_job_history 정리 재개.
+
 ### 로드밸런서 트래픽 편중
 
 API 서버 2대 운영 시 한쪽에만 트래픽이 집중됐습니다.  
@@ -453,6 +684,6 @@ Nginx 기본 round-robin에서 keepalive 커넥션이 단일 서버에 고정되
 
 <p align="center">
   <strong>프로젝트 기간</strong>: 2026-01 ~ 현재 &nbsp;|&nbsp;
-  <strong>버전</strong>: v3.5.1 &nbsp;|&nbsp;
-  <strong>업데이트</strong>: 2026-04-23
+  <strong>버전</strong>: v3.5.3 &nbsp;|&nbsp;
+  <strong>업데이트</strong>: 2026-05-08
 </p>
