@@ -11,7 +11,7 @@
 <p align="center">
   <strong>Live Demo</strong> &nbsp;·&nbsp; <a href="https://www.tubeten.co.kr">https://www.tubeten.co.kr</a>
   &nbsp;|&nbsp;
-  <strong>API Docs</strong> &nbsp;·&nbsp; <a href="https://app.swaggerhub.com/apis-docs/tubeten/tubeten-api/v3.7.0">SwaggerHub</a>
+  <strong>API Docs</strong> &nbsp;·&nbsp; <a href="https://app.swaggerhub.com/apis-docs/tubeten/tubeten-api/v3.7.0?view=uiDocs">SwaggerHub</a>
 </p>
 
 <p align="center">
