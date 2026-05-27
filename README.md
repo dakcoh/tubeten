@@ -259,10 +259,105 @@ TrendScore = view_delta
 ```
 윈도우 확장으로 30분 배치 × 8사이클 내에 충분한 스냅샷이 확보되어 순위 변동이 구조적으로 안정화됐습니다.
 
+### 12. 채널 대시보드 viewGrowthRate null/0.0 버그 수정
+
+채널 대시보드의 급성장 채널 목록(`/channel-dashboard`)에서 조회수 성장률이 모두 `null` 또는 `0.0`으로 표시되는 오류가 발생했습니다.
+
+**원인 분석:**
+
+- `TopGrowthProjection` 인터페이스에 `getViewGrowthRate()` 메서드가 선언되어 있지 않아 JPA 결과를 매핑할 수 없었음
+- `GrowthRateCalculator`가 스냅샷 비교 시 `viewDelta / elapsedHours` 대신 최신 스냅샷의 절대 조회수를 사용하는 로직 오류
+- `TopGrowthRanker`가 `GrowthRateResult` 필드를 `TopGrowthChannel` DTO에 매핑하지 않아 계산 결과가 소실
+
+**수정 내용:**
+
+| 파일 | 수정 사항 |
+|------|----------|
+| `TopGrowthProjection.java` | `getViewGrowthRate()` 메서드 추가 |
+| `GrowthRateResult.java` | `viewGrowthRate` 필드 추가 및 계산 로직 수정 |
+| `GrowthRateCalculator.java` | 스냅샷 간 조회수 차이를 시간으로 나눈 실제 성장률로 교체 |
+| `TopGrowthChannel.java` | `viewGrowthRate` 필드 추가 |
+| `TopGrowthRanker.java` | `GrowthRateResult → TopGrowthChannel` 매핑 시 `viewGrowthRate` 포함 |
+| `TopGrowthResponse.java`, `BenchmarkResponse.java` | API 응답 DTO에 필드 노출 |
+
+**결과:** 급성장 채널 목록에서 채널별 조회수 성장률이 정확한 수치로 표시됨.
+
+### 13. 프론트엔드 UX 3가지 버그 수정 — 깜빡임·레이아웃 튐·전환 불일치
+
+운영 중인 프론트엔드에서 시각적으로 눈에 띄는 UX 버그 3개를 발견하고 원인까지 추적해 수정했습니다.
+
+#### 문제 1 — Creators 히어로 섹션 깜빡임
+
+`<Transition>` 래퍼로 스켈레톤 ↔ 실제 콘텐츠를 교체하는 구조에서, 두 요소 사이 **1프레임 빈 DOM 구간**이 발생해 흰색 플래시가 보였습니다.
+
+- **원인**: `v-if`로 스켈레톤 `<div>`와 히어로 `<section>`을 별도 요소로 분기 → Vue가 두 요소를 순서대로 언마운트·마운트하는 사이에 빈 프레임 발생
+- **수정**: 두 요소를 단일 `<section>` 래퍼 안으로 통합하고, 내부에서 `<template v-if>`·`<div v-else>` 패턴으로 즉시 교체
+- **CSS**: `animation-fill-mode: backwards` 적용 — 애니메이션 시작 전에도 `opacity:0`이 보장되어 초기 렌더 플래시 원천 차단
+
+#### 문제 2 — YouTube Top 10 고정 필터 바 레이아웃 튐
+
+페이지 진입 시 국가·카테고리 필터 바가 뷰포트 상단에서 순간 렌더되다가 제자리로 이동하는 현상이 발생했습니다.
+
+- **원인**: 페이지 전환 애니메이션에 `transform: translateY(10px)` 적용 → CSS 명세상 `transform`을 가진 요소는 `position:fixed/sticky` 자식의 containing block이 됨 → 필터 바가 뷰포트 대신 페이지 래퍼를 기준으로 배치
+- **수정**: 전환 효과를 `opacity` 단독으로 변경 (`transform` 완전 제거) → `position:fixed` 요소가 항상 뷰포트 기준으로 유지
+
+#### 문제 3 — 페이지 전환 효과 불일치
+
+일부 페이지(Creators)는 부드럽게 전환되는 반면 다른 페이지는 전환 없이 즉시 교체되었습니다.
+
+- **원인**: 각 뷰 컴포넌트가 개별적으로 다른 페이드 로직을 갖거나 전환이 없는 상태
+- **수정**: `App.vue`의 `<RouterView v-slot="{ Component }">` + `<Transition name="page-fade" mode="out-in">`으로 단일 공통 전환 적용 → 모든 라우트가 동일한 `0.10s leave / 0.28s enter` opacity 전환을 공유
+
+### 14. 데드코드 정리 — 총 -2,318 lines
+
+기능 추가·리팩토링이 누적되면서 생긴 미사용 코드를 전면 점검하고 제거했습니다.
+
+| 분류 | 항목 | 내용 |
+|------|------|------|
+| **파일 삭제** | `useVirtualScroll.js` | 어디서도 import되지 않는 orphaned composable |
+| | `ConfirmModal.vue` | 어디서도 사용되지 않는 orphaned 컴포넌트 |
+| | `VideoModal/index.vue`, `VideoModal.css` | import 0건 — 실제 사용처 없는 dead 컴포넌트 |
+| | `utilities.css` (572줄) | 정의만 되고 HTML에서 사용되지 않는 유틸리티 클래스 |
+| | `mixins.css` (432줄) | 클래스 참조 없이 `@import`만 연결된 데드 CSS |
+| **Analytics 제거** | `useDashboard.js`, `useSidebar.js` | `/api/analytics` 엔드포인트 없는 미구현 추적 코드 |
+| **레거시 메서드** | `DashboardService.js` | `@deprecated` 메서드 4개 (`fetchStats`, `fetchTrends`, `fetchMovers`, `fetchRankings`) |
+| | `YouTubeService.js` | 구 `getLatestRankings()` + `youTubeService` alias |
+| | `Video.js` | 호출처 없는 `toJSON()` 메서드 |
+| | `CreatorService.js` | `getSimilarCreators()`, `getTrendingVideos()` — 호출처 0건 |
+| **중복 keyframe** | 11개 파일 | `@keyframes spin` / `@keyframes shimmer` 중복 선언 제거 |
+| **백엔드 dead endpoint** | `CreatorController` | `/api/creator/{id}/similar`, `/api/creator/{id}/trending-videos` — 프론트 호출처 없음 |
+| | `InsightFacade` | `getSimilarCreators()`, `getTrendingVideos()` — dead 컨트롤러에서만 호출 |
+
+**제거 근거**: 각 항목마다 전체 코드베이스에서 사용처를 확인한 후 zero-caller가 검증된 항목만 제거. 총 **2,318 lines 순감소**.
+
+### 15. 코드 품질 개선 — 검증 일관성·타입 안전성·공통 패턴 추출
+
+운영 코드 리뷰에서 발견한 중복·불일치를 구조적으로 정리했습니다.
+
+**① API 파라미터 검증 일관성 확보**
+
+`ChannelDashboardController`가 로컬 `validatePeriod()` 메서드를 직접 정의하고 `IllegalArgumentException`을 던지고 있어,
+글로벌 `GlobalExceptionHandler`의 `RankingException` 핸들러를 경유하지 못하는 버그가 있었습니다.
+`ApiValidationUtil.validatePeriod(period, validPeriods...)` 오버로드를 추가해 모든 컨트롤러가 단일 진입점을 사용하도록 통일.
+`capPageSize(size, max, defaultSize)` 메서드도 추가해 컨트롤러마다 인라인으로 흩어진 페이지 크기 캡핑 로직을 제거했습니다.
+
+**② Admin API Request DTO 분리**
+
+`CreatorAdminController`와 `CategoryAdminController`가 `Map<String, String>` / `Map<String, Integer>`를 `@RequestBody`로 직접 받아,
+검증 로직이 컨트롤러 메서드 안에 인라인으로 분산되어 있었습니다.
+`CreatorRegisterRequest`, `CreatorStatusRequest`, `CategoryWindowRequest` record를 신규 생성하고
+`@Valid` + Bean Validation(`@NotBlank`, `@NotNull`, `@Min`)으로 검증 책임을 DTO로 이전했습니다.
+
+**③ 프론트엔드 `useAsyncLoader` Composable 추출**
+
+5개 admin store(`adminBatch`, `adminDashboard`, `adminCreator`, `adminStopword`, `adminCategory`)가
+동일한 `loading.value = true / try-catch(console.warn) / finally` 패턴을 각자 구현하고 있었습니다.
+`useAsyncLoader(logPrefix)` composable로 추출해 각 store의 목록 조회 함수에서 보일러플레이트 5줄을 제거했습니다.
+
 ---
 
 <p align="center">
   <strong>프로젝트 기간</strong>: 2026-01 ~ 현재 &nbsp;|&nbsp;
-  <strong>버전</strong>: v3.7.0 &nbsp;|&nbsp;
-  <strong>업데이트</strong>: 2026-05-20
+  <strong>버전</strong>: v3.9.0 &nbsp;|&nbsp;
+  <strong>업데이트</strong>: 2026-05-27
 </p>
