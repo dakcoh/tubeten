@@ -359,5 +359,5 @@ TrendScore = view_delta
 <p align="center">
   <strong>프로젝트 기간</strong>: 2026-01 ~ 현재 &nbsp;|&nbsp;
   <strong>버전</strong>: v3.9.0 &nbsp;|&nbsp;
-  <strong>업데이트</strong>: 2026-05-27
+  <strong>업데이트</strong>: 2026-05-29
 </p>
