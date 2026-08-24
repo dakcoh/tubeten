@@ -1,238 +1,166 @@
 <p align="center">
-  <img src="./assets/logo.png" alt="TubeTen Logo" width="180"/>
+  <img src="./assets/logo.png" alt="TubeTen Logo" width="160"/>
 </p>
 
 <h1 align="center">TubeTen</h1>
 
 <p align="center">
-  YouTube 공개 데이터의 변화량을 분석해 성장 중인 영상과 채널을 보여주는 트렌드 서비스
-</p>
-
-<p align="center">
-  Java·Spring Boot 기반의 데이터 수집·배치·조회 API를 직접 설계하고 운영한 개인 프로젝트
+  YouTube 공개 데이터의 변화량을 수집·분석해 성장 중인 영상과 채널을 보여주는 트렌드 서비스
 </p>
 
 <p align="center">
   <a href="https://www.tubeten.co.kr"><strong>Live Service</strong></a>
   &nbsp;·&nbsp;
-  <a href="https://www.tubeten.co.kr/api/swagger-ui.html"><strong>API Docs</strong></a>
+  <a href="https://www.tubeten.co.kr/api/swagger-ui.html"><strong>Public API</strong></a>
   &nbsp;·&nbsp;
   <a href="https://www.tubeten.co.kr/api/docs"><strong>OpenAPI JSON</strong></a>
 </p>
 
-<p align="center">
-  <img src="https://img.shields.io/badge/Java-21-orange.svg" alt="Java 21">
-  <img src="https://img.shields.io/badge/Spring%20Boot-3.5-brightgreen.svg" alt="Spring Boot 3.5">
-  <img src="https://img.shields.io/badge/Nuxt-3.21-00DC82.svg" alt="Nuxt 3.21">
-  <img src="https://img.shields.io/badge/MySQL-8.0-blue.svg" alt="MySQL 8">
-  <img src="https://img.shields.io/badge/Redis-7-red.svg" alt="Redis 7">
-  <img src="https://img.shields.io/badge/OpenAPI-3.1-6BA539.svg" alt="OpenAPI 3.1">
-</p>
-
 ---
 
-## 프로젝트 소개
+## 프로젝트 요약
 
-TubeTen은 단순 누적 조회수보다 **최근 조회수·좋아요·댓글의 변화량**을 중심으로 YouTube 콘텐츠의 성장 흐름을 보여주는 서비스입니다.
-
-한국·미국·일본의 인기 영상과 크리에이터 데이터를 주기적으로 수집하고 다음 기능을 제공합니다.
-
-- 국가·카테고리별 실시간 인기 영상
-- 트렌드 대시보드와 Shorts 분석
-- 영상 상세 성장 추이
-- 크리에이터 검색과 성장 리포트
-- 채널 성장률 비교
-- 주간 트렌드 리포트
-
-> YouTube의 공식 순위를 복제하는 서비스가 아니라, YouTube Data API의 공개 데이터를 자체적으로 수집하고 변화량을 계산해 보여주는 프로젝트입니다.
-
-## 경력기술서 요약
+TubeTen은 단순 누적 조회수가 아니라 최근 조회수·좋아요·댓글의 **변화 속도**를 기준으로 콘텐츠 성장 흐름을 분석합니다. 한국·미국·일본 데이터를 주기적으로 수집해 랭킹, 영상 분석, 크리에이터 성장 지표와 주간 리포트를 제공합니다.
 
 | 항목 | 내용 |
 |---|---|
-| 프로젝트 | YouTube 공개 데이터 기반 트렌드 분석 서비스 개발·운영 |
 | 기간·인원 | 2026.01 ~ 현재 · 개인 프로젝트 |
-| 주요 역할 | Spring Boot API, 수집·집계 배치, MySQL 데이터 모델과 운영 환경 구축 |
-| 핵심 과제 | 외부 API 수집 속도 개선, DB 포화 방지, 대용량 시계열 조회 최적화, 배치 신뢰성 확보 |
-| 운영 방식 | Docker Compose 기반 실제 서비스 운영, 로그·배치 이력·DB 지표를 확인하며 개선 |
+| 담당 범위 | 백엔드 중심 설계·개발·운영, Nuxt SSR 및 Docker 배포 |
+| 핵심 과제 | 외부 API 병렬 수집, DB 부하 제어, 시계열 조회 최적화, 배치 신뢰성 |
+| 운영 환경 | Java 21, Spring Boot 3.5, Nuxt 3, MySQL 8, Redis 7, Nginx, Docker Compose |
 
-한 문장으로 설명하면, **외부 API 데이터를 주기적으로 수집하고 변화량을 계산해 서비스하는 과정에서 발생한 속도와 DB 부하 문제를 직접 개선한 백엔드 중심 프로젝트**입니다.
+> 실제 운영 데이터와 장애를 기반으로 병목을 찾고, 변경 범위와 검증 기준을 정한 뒤 점진적으로 개선한 프로젝트입니다.
 
-## 직접 확인할 수 있는 결과물
+## 주요 기능
 
-| 결과물 | 링크 |
-|---|---|
-| 운영 서비스 | [www.tubeten.co.kr](https://www.tubeten.co.kr) |
-| 인기 영상 순위 | [YouTube Top 10](https://www.tubeten.co.kr/youtube-top10) |
-| API 문서 | [Swagger UI](https://www.tubeten.co.kr/api/swagger-ui.html) |
-| OpenAPI 명세 | [OpenAPI JSON](https://www.tubeten.co.kr/api/docs) |
-
-## 담당한 작업
-
-개인 프로젝트로 시작해 백엔드를 중심으로 기능을 구현하고 실제 운영 환경에서 발생한 문제를 반복적으로 개선했습니다.
-
-| 영역 | 수행 내용 |
-|---|---|
-| 데이터 수집 | YouTube API 영상·채널 수집과 30분 단위 원본 스냅샷 저장 |
-| 랭킹 | 최근 변화량을 이용한 성장 점수 계산과 60분 단위 순위 발행 |
-| API | 랭킹, 영상 분석, 크리에이터, 대시보드 조회 API 구현 |
-| 데이터베이스 | MySQL 인덱스, 일별 파티션, 보관 기간과 정리 배치 적용 |
-| 캐시 | Redis와 사전 생성 JSON을 이용한 반복 조회 부하 감소 |
-| 운영 | Docker Compose 배포, health check, 로그·배치 이력 확인 |
-| 프론트엔드 | Nuxt SSR 화면과 백엔드 API 연결, 기본 SEO와 반응형 화면 구성 |
-
-프론트엔드와 인프라도 직접 구성했지만, 핵심 역할은 **Spring 기반 데이터 수집·배치·조회 API와 운영 중 발견한 병목 개선**입니다.
+- 국가·카테고리별 실시간 인기 영상 랭킹
+- 영상 조회수·반응·순위 변화 분석
+- Shorts 및 크리에이터 성장 분석
+- 채널 비교와 주간 트렌드 리포트
+- 공개 API와 OpenAPI 3.1 문서
 
 ## 시스템 구성
 
 ```mermaid
 flowchart LR
-    User["사용자"] --> Nginx["Nginx"]
-    Nginx --> Nuxt["Nuxt SSR"]
-    Nginx --> API["Spring API"]
-    API --> MySQL[("MySQL")]
-    API --> Redis[("Redis")]
-    Batch["Batch App"] --> YouTube["YouTube Data API"]
+    User[사용자] --> Gateway[Nginx Gateway]
+    Gateway --> Nuxt[Nuxt SSR x2]
+    Gateway --> API[Spring API x2]
+    API --> Redis[(Redis)]
+    API --> MySQL[(MySQL)]
+    Batch[Spring Batch] --> YouTube[YouTube Data API]
     Batch --> MySQL
     Batch --> Redis
 ```
 
-백엔드는 공통 도메인, API, Batch 모듈로 나눴습니다.
-
 ```text
-tubeten-common  도메인, 저장소, 공통 서비스
-tubeten-api     사용자·관리자 API, 인증, OpenAPI
-tubeten-batch   데이터 수집, 랭킹 집계, 데이터 정리
+tubeten-common  도메인·저장소·공통 서비스
+tubeten-api     공개/관리자 API·인증·OpenAPI
+tubeten-batch   데이터 수집·랭킹 집계·보관 기간 정리
 ```
 
-API와 Batch를 별도 프로세스로 실행했습니다. 사용자의 조회 요청과 무거운 데이터 수집 작업이 같은 애플리케이션의 스레드와 메모리를 직접 경쟁하지 않게 하기 위한 선택입니다.
+API와 Batch를 별도 프로세스로 분리해 사용자 조회와 무거운 수집·집계 작업이 같은 스레드와 메모리를 경쟁하지 않도록 했습니다.
 
-## 데이터 처리 흐름
+## 대표 개선 경험
 
-```text
-YouTube Data API
-  → 수집 대상 영상
-  → 영상 스냅샷
-  → 변화량 계산
-  → 국가·카테고리별 랭킹
-  → Redis·대시보드 JSON 캐시
-  → REST API
-  → Nuxt 화면
-```
+### 1. 외부 API 수집 시간을 9분대에서 35초 수준으로 단축
 
-조회수·반응 원본은 변화량 계산의 정밀도를 위해 30분마다 저장합니다. DB 부하가 큰 수집 대상 탐색과 랭킹 발행은 60분마다 실행해 조회 서비스와의 경합을 줄였습니다. 오래된 원본은 테이블별 보관 기간과 날짜 파티션 정책에 따라 정리합니다.
+- **문제:** YouTube API를 순차 호출해 약 790개 영상 수집에 9분 24초 소요
+- **판단:** 네트워크 대기는 Virtual Thread로 병렬화하되 외부 API와 DB 저장 동시성은 별도 제한
+- **결과:** 동일 규모 기준 약 35초 수준으로 단축하고 batch UPSERT로 DB 왕복 감소
 
-## 운영하며 개선한 사례
+가상 스레드 수를 처리량으로 간주하지 않고, 외부 API 한도와 DB 커넥션 수를 실제 병목으로 관리했습니다.
 
-### 1. 영상 수집 시간을 약 9분에서 35초 수준으로 줄였습니다
+### 2. 외부 I/O와 DB 트랜잭션 경계 분리
 
-초기에는 YouTube API 응답을 순차적으로 기다려 영상 스냅샷 수집에 약 9분이 걸렸습니다.
+- **문제:** 외부 API 응답을 기다리는 동안 DB 커넥션까지 장시간 점유
+- **판단:** 작업 조율과 네트워크 호출에서는 트랜잭션을 제거하고 저장 구간만 짧게 분리
+- **결과:** 외부 API 지연이 DB 풀 고갈로 전파될 가능성을 낮추고 저장 단위를 명확하게 관리
 
-Java 21 Virtual Thread를 적용해 여러 외부 API 요청을 효율적으로 기다리도록 개선했습니다. 다만 요청을 무제한으로 실행하면 YouTube API와 DB가 다시 포화될 수 있으므로, DB 저장과 외부 API 진입 수는 별도의 제한값으로 관리했습니다.
+### 3. 데이터 증가에 대응하는 조회·보관 구조 적용
 
-운영 환경에서 약 790개 영상의 수집 시간이 **9분 24초에서 약 35초 수준**으로 줄었습니다. 가상 스레드로 대기 비용을 줄이면서 실제 처리량은 DB 커넥션과 외부 API 한도에 맞춰 별도로 제한했습니다. 이 수치는 당시 운영 데이터와 외부 API 상태에서 관측한 값입니다.
+- 최근 시간 범위를 SQL 조건에 명시하고 실행 계획 기반 복합 인덱스 적용
+- 시계열 테이블을 날짜 단위로 파티셔닝하고 만료 데이터는 파티션 단위 정리
+- 대시보드와 Shorts 집계는 사전 생성 후 Redis/JSON으로 제공
+- 약 44만 행 환경에서 Shorts 시계열·히트맵 조회가 각각 약 51ms·47ms로 관측
 
-### 2. 긴 트랜잭션으로 인한 DB 커넥션 점유를 줄였습니다
+측정값은 당시 운영 데이터와 캐시 조건 기준이며, 인덱스를 무조건 추가하지 않고 쓰기 비용과 중복 여부도 함께 검토했습니다.
 
-외부 API 호출을 포함한 전체 메서드에 트랜잭션이 걸려 있어, 네트워크 응답을 기다리는 동안에도 DB 커넥션을 오래 점유할 수 있었습니다.
+### 4. 배치 실행 상태와 중복 실행을 운영 데이터로 관리
 
-외부 API 호출과 작업 조율에서는 긴 트랜잭션을 제거하고, 실제 저장 구간에만 짧은 트랜잭션을 적용했습니다. 여러 건의 저장은 batch UPSERT로 합쳐 DB 왕복 횟수도 줄였습니다.
+- 시작·완료·실패 상태, 처리 건수와 실행 시간을 DB에 기록
+- 작업 소유자와 lease 만료 시각을 저장해 다중 인스턴스 중복 실행 방지
+- timeout과 재시작 이후에도 로그와 DB 이력을 함께 대조할 수 있도록 구성
+- raw 데이터 보관 기간과 정리 순서를 코드·Flyway·운영 문서에서 일관되게 관리
 
-핵심은 **네트워크 작업과 DB 저장 작업의 경계를 분리한 것**입니다. 외부 API가 느려져도 DB 커넥션이 함께 묶여 있는 시간을 줄였습니다.
+### 5. 새 랭킹 알고리즘을 shadow 방식으로 평가
 
-### 3. 데이터가 늘어나도 필요한 범위만 조회하도록 개선했습니다
+공개 랭킹은 안정된 `velocity-v1`을 유지하고, 후보 알고리즘은 별도 버전으로 feature·24시간 미래 성장 label·Recall@10·NDCG@10·Rank Churn을 저장합니다. 최소 14일 paired 평가와 범위별 품질 기준을 통과하기 전에는 운영 랭킹을 교체하지 않습니다.
 
-랭킹과 영상 스냅샷이 계속 누적되면서 일부 집계 쿼리가 오래된 데이터까지 읽는 문제가 있었습니다.
+V2.3은 shadow 모니터링 대상이며, 검증이 끝나기 전 성과 수치로 사용하지 않습니다.
 
-- 조회에 필요한 최근 시간 범위를 SQL에 명시
-- 실행 계획을 확인하고 실제 조회 조건에 필요한 복합 인덱스만 적용
-- 날짜 단위 RANGE 파티션 사용
-- 만료 데이터는 파티션 단위로 정리
-- 대시보드와 Shorts 응답은 미리 생성해 저장
+## Public API 설계
 
-Shorts 시계열과 히트맵 조회는 운영 데이터 약 44만 행 기준으로 각각 약 **51ms, 47ms**가 관측됐습니다. 인덱스를 계속 추가한 것이 아니라 조회 조건과 중복 여부를 확인했고, 필요하지 않은 인덱스는 Flyway 변경 이력으로 제거했습니다. 측정값은 데이터량과 캐시 상태에 따라 달라질 수 있습니다.
+[Swagger UI](https://www.tubeten.co.kr/api/swagger-ui.html)는 운영 서비스와 같은 도메인에서 공개 조회·분석 API만 제공합니다.
 
-### 4. 배치가 실제로 끝났는지 확인할 수 있게 만들었습니다
-
-스케줄러 로그만으로는 재시작이나 timeout 이후 작업이 실제로 끝났는지 판단하기 어려웠습니다.
-
-작업 시작·완료·실패 상태와 처리 건수, 실행 시간을 DB에 기록했습니다. 같은 작업이 여러 Batch 인스턴스에서 동시에 실행되지 않도록 작업 소유자와 **소유권 유효 시간(lease)**도 저장했습니다. 덕분에 로그만 보는 대신 DB 이력과 로그를 함께 사용해 실행 결과를 판단할 수 있습니다.
-
-## 핵심 기술 의사결정
-
-- **왜 API와 Batch를 분리했나요?** 사용자 조회와 무거운 수집·집계가 같은 실행 자원을 경쟁하지 않게 하기 위해서입니다.
-- **왜 모든 작업을 병렬화하지 않았나요?** 가상 스레드는 대기를 가볍게 하지만 DB 커넥션과 외부 API 한도를 늘려주지는 않기 때문입니다.
-- **왜 스냅샷은 30분이고 랭킹은 60분인가요?** 변화량 계산용 원본 정밀도는 유지하면서, 무거운 집계와 캐시 갱신 횟수를 줄여 DB 포화를 완화하기 위해서입니다.
-- **왜 인덱스를 계속 추가하지 않았나요?** 인덱스도 저장·갱신 비용이 있으므로 실행 계획과 실제 조건을 확인해 필요한 것만 유지하고 중복 인덱스는 제거했습니다.
-- **성능 개선을 어떻게 검증했나요?** 실행 시간, 조회 행 수, DB 커넥션 사용량, 배치 성공 이력과 회귀 테스트를 함께 확인했습니다.
-
-## API 문서와 호환성
-
-[Swagger UI](https://www.tubeten.co.kr/api/swagger-ui.html)에서 운영 중인 공개 API의 요청 파라미터와 응답 모델을 확인할 수 있습니다.
-
-- OpenAPI 3.1 사용
-- 운영 서비스와 같은 도메인에서 Swagger UI 제공
-- 관리자·내부 처리 API는 공개 문서에서 제외
-- 정적 `swagger.yaml`은 Redocly CLI로 구조 검증
-- `master` push와 pull request에서 GitHub Actions 자동 실행
-- 기존 offset 방식과 새로운 snapshot cursor 방식을 함께 지원
-
-snapshot cursor는 첫 페이지의 데이터 기준 시각과 마지막 순위를 다음 요청에 전달합니다. 페이지를 넘기는 도중 새 랭킹이 발행돼도 처음 보던 시점의 목록을 이어서 제공하기 위한 방식입니다.
-
-## 운영 방식
-
-| 상황 | 대응 방식 |
+| 공개 | 제외 |
 |---|---|
-| YouTube API 일시 오류 | Retry와 CircuitBreaker 적용, 일부 영상 누락은 부분 성공으로 기록 |
-| Redis 장애 | 캐시 오류를 기록하고 DB 조회로 fallback |
-| API 배포 | 2개 API 컨테이너를 순차 교체하고 health 확인 |
-| Batch 배포 | Flyway 이력과 배치 로그 확인 후 단일 컨테이너 교체 |
-| 데이터 증가 | 보관 기간과 파티션 정리 상태 확인 |
-| 조회 지연 | 실행 계획, 조회 행 수, 인덱스 사용 여부를 함께 확인 |
+| 랭킹, 대시보드 조회, 영상 분석·탐색 | 관리자 인증·계정·배치 실행 API |
+| Shorts, 크리에이터, 채널 비교 | 강제 갱신, 이벤트 수집 API |
+| 트렌드 리포트, 카테고리 | 이미지 프록시, sitemap 내부 API |
 
-운영 설정을 무조건 크게 잡기보다 API 응답 시간, DB 커넥션 사용량, 배치 단계별 실행 시간을 확인한 뒤 조정하는 것을 원칙으로 삼았습니다.
+차단 목록만 관리하면 새 관리자 API가 실수로 노출될 수 있어 `springdoc.paths-to-match` **allowlist**를 사용합니다. Gateway는 Swagger UI 자산과 `/api/docs`만 백엔드로 전달하고, 문서 응답에는 `noindex`와 보안 헤더를 적용합니다.
+
+정적 [swagger.yaml](./swagger.yaml)은 동적 공개 명세와 같은 범위를 유지하며 Redocly CLI와 GitHub Actions로 검증합니다.
+
+## 운영과 배포
+
+| 상황 | 대응 |
+|---|---|
+| YouTube API 일시 오류 | Retry·Circuit Breaker, 항목 단위 부분 성공 기록 |
+| Redis 장애 | 캐시 오류 격리 후 DB 조회 fallback |
+| API/Nuxt 배포 | 2개 컨테이너 순차 교체와 health gate |
+| Gateway 변경 | 새 설정 사전 검증 후 컨테이너 재생성, 내부·공개 gzip 확인 |
+| Batch 배포 | Flyway 적용 주체를 Batch로 단일화하고 API는 schema validation만 수행 |
+
+운영 설정을 먼저 키우기보다 API 응답 시간, DB 조회 범위, 커넥션 사용량과 배치 단계별 실행 시간을 확인한 뒤 조정합니다.
+
+## 검증
+
+| 영역 | 최근 확인 결과 |
+|---|---|
+| Backend | 공통/API JUnit 130건 통과, 실패 0 |
+| Public OpenAPI | 공개 allowlist 및 관리자·운영 경로 제외 회귀 테스트 통과 |
+| API Contract | OpenAPI 3.1, Redocly CLI 검증 통과 |
+| Frontend | Nuxt 검사·production build·성능 예산 통과 |
+| UI regression | Playwright 279건 중 190 통과, viewport 조건 89건 제외, 실패 0 |
+| Deployment | Compose 설정, shell 문법, 컨테이너 health와 공개 gzip 확인 |
+
+자동 테스트 결과와 운영 성능은 같은 의미로 보지 않습니다. 배포 전후에는 Flyway 이력, 실제 인덱스·파티션, 컨테이너 health와 운영 로그를 별도로 확인합니다.
 
 ## 기술 스택
 
 | 분류 | 기술 |
 |---|---|
-| Backend | Java 21, Spring Boot 3.5, Spring Data JPA, QueryDSL, JdbcTemplate |
-| Batch | Spring Scheduling, Virtual Thread, Flyway |
-| Database | MySQL 8, Redis 7 |
-| Resilience | Resilience4j Retry, CircuitBreaker |
+| Backend | Java 21, Spring Boot 3.5, JPA, QueryDSL, JdbcTemplate |
+| Data & Batch | MySQL 8, Redis 7, Flyway, Virtual Thread |
+| Resilience | Resilience4j Retry, Circuit Breaker |
 | Frontend | Nuxt 3, Vue 3, Pinia, ECharts |
 | Infra | Docker Compose, Nginx |
-| API Contract | OpenAPI 3.1, Swagger UI, Redocly CLI |
+| Quality | JUnit 5, Playwright, OpenAPI 3.1, Redocly CLI, GitHub Actions |
 
-## 검증
+## 이 프로젝트에서 보여주고 싶은 역량
 
-| 검증 항목 | 결과 |
-|---|---|
-| Backend | JUnit 5 — 47 suites, 106 tests, 실패 0 |
-| Docker integration | MySQL 8·Redis 7·활성 Batch 14개 — 3 suites, 10 tests, 실패 0 |
-| Spring context | API·Batch test profile 기동 확인 |
-| Frontend | ESLint, vue-tsc typecheck 통과 |
-| Production build | API·Batch와 Nuxt production build 통과 |
-| OpenAPI | Redocly CLI 구조 검증과 GitHub Actions 통과 |
-| UI regression | Playwright 177개 프로젝트 케이스 중 105개 통과, viewport 중복 72개 의도적 제외, 실패 0 |
-
-테스트 환경은 운영 MySQL과 완전히 같지 않습니다. 따라서 자동 테스트 통과와 운영 성능 보장을 같은 의미로 보지 않고, 배포 전후 Flyway 이력, 실제 인덱스·파티션, 컨테이너 health와 로그를 별도로 확인합니다.
-
-## 이 프로젝트를 통해 배운 점
-
-- 외부 API 병렬 처리와 DB 동시성은 별도로 제한해야 한다는 점
-- 트랜잭션 범위가 DB 커넥션 사용 시간에 직접 영향을 준다는 점
-- 인덱스는 개수보다 실제 쿼리 조건과 실행 계획이 중요하다는 점
-- 배치는 성공 여부뿐 아니라 중복 실행과 timeout 이후 상태까지 기록해야 한다는 점
-- 성능 수치는 측정 시점의 데이터량과 조건을 함께 밝혀야 한다는 점
-- 배포 후 확인 절차와 rollback 경로도 기능 구현의 일부라는 점
+- 기능 구현보다 먼저 데이터 흐름과 실제 병목을 확인하는 문제 해결 방식
+- 외부 API 동시성, DB 트랜잭션과 커넥션을 분리해서 보는 백엔드 설계
+- 스키마 변경, 보관 기간, 배치 재시작과 rollback까지 포함하는 운영 관점
+- 새 알고리즘을 즉시 교체하지 않고 지표와 shadow 데이터로 판단하는 변경 관리
+- 백엔드·프론트·Gateway·배포 검증을 하나의 서비스 흐름으로 연결하는 End-to-End 책임감
 
 ---
 
 <p align="center">
-  <strong>프로젝트 기간</strong>: 2026.01 ~ 현재
+  <strong>Backend-focused End-to-End Project</strong>
   &nbsp;·&nbsp;
-  <strong>역할</strong>: 백엔드 중심 개인 프로젝트
-  &nbsp;·&nbsp;
-  <strong>업데이트</strong>: 2026-07-23
+  <strong>Updated</strong>: 2026-08-24
 </p>
