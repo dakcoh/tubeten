@@ -1,8 +1,5 @@
 <p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="./assets/portfolio-logo-on-dark.png"/>
-    <img src="./assets/portfolio-logo-on-light.png" alt="TubeTen Logo" width="96"/>
-  </picture>
+  <img src="./assets/portfolio-logo-on-light.png" alt="TubeTen Logo" width="96"/>
 </p>
 
 <h1 align="center">TubeTen</h1>
